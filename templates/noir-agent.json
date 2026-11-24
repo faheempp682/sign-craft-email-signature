@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "template_id": "noir-agent",
+  "theme": {
+    "primary": "#111111",
+    "text": "#111111",
+    "muted": "#555555",
+    "bg": "#FFFFFF",
+    "accent2": "#F4C542",
+    "font": "Arial",
+    "spacing": "normal"
+  },
+  "blocks": [
+    {
+      "type": "avatar",
+      "src": "https://placehold.co/300x300.png",
+      "alt": "Emily Hansen",
+      "shape": "circle",
+      "size": 150
+    },
+    {
+      "type": "identity",
+      "name": "Emily Hansen",
+      "title": "Licensed Real Estate Agent",
+      "company": "Open Realty Group"
+    },
+    {
+      "type": "contact",
+      "phone": "+1 555 010 2030",
+      "email": "emily@openrealty.com",
+      "address": "1234 Maple Street, Springfield"
+    },
+    {
+      "type": "social",
+      "links": [
+        {
+          "network": "facebook",
+          "url": "https://facebook.com/yourname"
+        },
+        {
+          "network": "instagram",
+          "url": "https://instagram.com/yourname"
+        },
+        {
+          "network": "linkedin",
+          "url": "https://linkedin.com/in/yourname"
+        },
+        {
+          "network": "twitter",
+          "url": "https://x.com/yourname"
+        }
+      ]
+    },
+    {
+      "type": "disclaimer",
+      "text": "Services offered: residential sales, investment property management"
+    }
+  ]
+}

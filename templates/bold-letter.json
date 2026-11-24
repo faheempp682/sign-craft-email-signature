@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "template_id": "bold-letter",
+  "theme": {
+    "primary": "#0B0B0B",
+    "text": "#0B0B0B",
+    "muted": "#6B7280",
+    "bg": "#FFFFFF",
+    "accent2": "#F4C542",
+    "font": "Arial",
+    "spacing": "normal"
+  },
+  "blocks": [
+    {
+      "type": "avatar",
+      "src": "https://placehold.co/208x208.png",
+      "alt": "Rukii",
+      "shape": "circle",
+      "size": 104
+    },
+    {
+      "type": "identity",
+      "name": "Rukii Blessing",
+      "title": "Graphic Designer"
+    },
+    {
+      "type": "contact",
+      "phone": "07025032674, 09029789357",
+      "address": "Rivers State, Nigeria"
+    }
+  ]
+}

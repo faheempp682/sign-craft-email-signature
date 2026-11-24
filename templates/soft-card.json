@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "template_id": "soft-card",
+  "theme": {
+    "primary": "#F0679A",
+    "text": "#1F1F1F",
+    "muted": "#6B7280",
+    "bg": "#FFFFFF",
+    "accent2": "#F4C542",
+    "font": "Arial",
+    "spacing": "normal"
+  },
+  "blocks": [
+    {
+      "type": "avatar",
+      "src": "https://placehold.co/168x168.png",
+      "alt": "Email Signature Rescue",
+      "shape": "rounded",
+      "size": 84
+    },
+    {
+      "type": "identity",
+      "name": "Beth McMillan",
+      "title": "Customer Support",
+      "company": "Email Signature Rescue"
+    },
+    {
+      "type": "contact",
+      "email": "support@emailsignaturerescue.com",
+      "website": "emailsignaturerescue.com"
+    },
+    {
+      "type": "social",
+      "links": [
+        {
+          "network": "facebook",
+          "url": "https://facebook.com/yourname"
+        },
+        {
+          "network": "twitter",
+          "url": "https://x.com/yourname"
+        },
+        {
+          "network": "youtube",
+          "url": "https://youtube.com/@yourname"
+        },
+        {
+          "network": "instagram",
+          "url": "https://instagram.com/yourname"
+        },
+        {
+          "network": "linkedin",
+          "url": "https://linkedin.com/in/yourname"
+        }
+      ]
+    },
+    {
+      "type": "disclaimer",
+      "text": "100+ Templates / Rated 4.8 on TrustPilot / Partner Program"
+    }
+  ]
+}

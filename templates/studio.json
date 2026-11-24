@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "template_id": "studio",
+  "variant": "s001",
+  "theme": {
+    "primary": "#12284C",
+    "text": "#1B2433",
+    "muted": "#5B6577",
+    "bg": "#FFFFFF",
+    "accent2": "#C9A24B",
+    "font": "Arial",
+    "spacing": "normal"
+  },
+  "blocks": [
+    {
+      "type": "avatar",
+      "src": "https://placehold.co/200x200.png",
+      "alt": "Olivia Bennett",
+      "shape": "circle",
+      "size": 100
+    },
+    {
+      "type": "identity",
+      "name": "Olivia Bennett",
+      "title": "Real Estate Advisor",
+      "company": "Harbor & Key Realty"
+    },
+    {
+      "type": "contact",
+      "phone": "+1 555 0131 2777",
+      "email": "olivia@harborkey.com",
+      "website": "harborkey.com",
+      "address": "214 Harbor Street, Boston, MA"
+    },
+    {
+      "type": "social",
+      "links": [
+        {
+          "network": "linkedin",
+          "url": "https://linkedin.com/in/yourname"
+        },
+        {
+          "network": "instagram",
+          "url": "https://instagram.com/yourname"
+        }
+      ]
+    }
+  ]
+}

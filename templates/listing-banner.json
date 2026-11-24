@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "template_id": "listing-banner",
+  "theme": {
+    "primary": "#1D4F91",
+    "text": "#111827",
+    "muted": "#4B5563",
+    "bg": "#FFFFFF",
+    "accent2": "#F4C542",
+    "font": "Arial",
+    "spacing": "normal"
+  },
+  "blocks": [
+    {
+      "type": "avatar",
+      "src": "https://placehold.co/156x156.png",
+      "alt": "Jason Roberts",
+      "shape": "rounded",
+      "size": 78
+    },
+    {
+      "type": "identity",
+      "name": "Jason Roberts",
+      "title": "Real Estate Agent"
+    },
+    {
+      "type": "contact",
+      "phone": "555-321-9876",
+      "email": "jason@example.com",
+      "website": "www.jasonrobertsrealty.com"
+    },
+    {
+      "type": "banner",
+      "src": "https://placehold.co/452x72/1D4F91/FFFFFF.png?text=OPEN+HOUSE+THIS+SATURDAY",
+      "alt": "Open house this Saturday, 1234 Maple Street, 1-4 PM",
+      "href": "https://example.com/open-house",
+      "width": 452,
+      "height": 72
+    },
+    {
+      "type": "social",
+      "links": [
+        {
+          "network": "facebook",
+          "url": "https://facebook.com/yourname"
+        },
+        {
+          "network": "instagram",
+          "url": "https://instagram.com/yourname"
+        },
+        {
+          "network": "linkedin",
+          "url": "https://linkedin.com/in/yourname"
+        }
+      ]
+    }
+  ]
+}

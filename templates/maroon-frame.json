@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "template_id": "maroon-frame",
+  "theme": {
+    "primary": "#F2E6DA",
+    "text": "#F2E6DA",
+    "muted": "#D9C7BC",
+    "bg": "#4A1D2C",
+    "accent2": "#F4C542",
+    "font": "Georgia",
+    "spacing": "normal"
+  },
+  "blocks": [
+    {
+      "type": "avatar",
+      "src": "https://placehold.co/220x220.png",
+      "alt": "Rosalina Josephine",
+      "shape": "square",
+      "size": 110
+    },
+    {
+      "type": "identity",
+      "name": "Rosalina Josephine",
+      "title": "Senior Art Director",
+      "company": "Elvora"
+    },
+    {
+      "type": "contact",
+      "email": "elvora@email.com",
+      "phone": "+123 456 7890",
+      "website": "elvorawebsite.com"
+    }
+  ]
+}

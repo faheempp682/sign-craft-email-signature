@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "template_id": "split-color",
+  "theme": {
+    "primary": "#0F766E",
+    "text": "#1F2937",
+    "muted": "#6B7280",
+    "bg": "#FFFFFF",
+    "accent2": "#FDE68A",
+    "font": "Arial",
+    "spacing": "normal"
+  },
+  "blocks": [
+    {
+      "type": "avatar",
+      "src": "https://placehold.co/184x184.png",
+      "alt": "Priya Nair",
+      "shape": "circle",
+      "size": 92
+    },
+    {
+      "type": "identity",
+      "name": "Priya Nair",
+      "title": "Head of Partnerships",
+      "company": "Greenfield"
+    },
+    {
+      "type": "contact",
+      "phone": "+1 555 014 7788",
+      "email": "priya@greenfield.com",
+      "website": "greenfield.com",
+      "address": "88 Harbour Street, Seattle"
+    },
+    {
+      "type": "social",
+      "links": [
+        {
+          "network": "linkedin",
+          "url": "https://linkedin.com/in/yourname"
+        },
+        {
+          "network": "twitter",
+          "url": "https://x.com/yourname"
+        }
+      ]
+    }
+  ]
+}

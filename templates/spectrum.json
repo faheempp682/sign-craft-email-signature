@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "template_id": "spectrum",
+  "theme": {
+    "primary": "#F2542D",
+    "text": "#111111",
+    "muted": "#555B66",
+    "bg": "#FFFFFF",
+    "accent2": "#4A3AFF",
+    "font": "Arial",
+    "spacing": "normal"
+  },
+  "blocks": [
+    {
+      "type": "avatar",
+      "src": "https://placehold.co/240x240.png",
+      "alt": "Dmitri Razumikhin",
+      "shape": "rounded",
+      "size": 120
+    },
+    {
+      "type": "identity",
+      "name": "Dmitri Razumikhin",
+      "title": "Manager",
+      "company": "crkito"
+    },
+    {
+      "type": "contact",
+      "phone": "+000 123 4567",
+      "address": "123 Street Name, State, Country",
+      "website": "www.example.com"
+    },
+    {
+      "type": "social",
+      "links": [
+        {
+          "network": "linkedin",
+          "url": "https://linkedin.com/in/yourname"
+        },
+        {
+          "network": "twitter",
+          "url": "https://x.com/yourname"
+        }
+      ]
+    }
+  ]
+}

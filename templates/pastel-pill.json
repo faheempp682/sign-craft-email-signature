@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "template_id": "pastel-pill",
+  "theme": {
+    "primary": "#7C4DFF",
+    "text": "#231942",
+    "muted": "#5E548E",
+    "bg": "#F1ECFF",
+    "accent2": "#F4C542",
+    "font": "Arial",
+    "spacing": "normal"
+  },
+  "blocks": [
+    {
+      "type": "avatar",
+      "src": "https://placehold.co/208x208.png",
+      "alt": "Mia Okafor",
+      "shape": "circle",
+      "size": 104
+    },
+    {
+      "type": "identity",
+      "name": "Mia Okafor",
+      "title": "Community Manager",
+      "company": "Lumen Studio"
+    },
+    {
+      "type": "contact",
+      "phone": "+44 20 7946 0958",
+      "email": "mia@lumen.studio",
+      "website": "lumen.studio"
+    },
+    {
+      "type": "social",
+      "links": [
+        {
+          "network": "instagram",
+          "url": "https://instagram.com/yourname"
+        },
+        {
+          "network": "twitter",
+          "url": "https://x.com/yourname"
+        },
+        {
+          "network": "linkedin",
+          "url": "https://linkedin.com/in/yourname"
+        }
+      ]
+    }
+  ]
+}

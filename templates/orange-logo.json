@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "template_id": "orange-logo",
+  "theme": {
+    "primary": "#E8801F",
+    "text": "#222222",
+    "muted": "#6B7280",
+    "bg": "#FFFFFF",
+    "accent2": "#F4C542",
+    "font": "Arial",
+    "spacing": "normal"
+  },
+  "blocks": [
+    {
+      "type": "avatar",
+      "src": "https://placehold.co/168x168.png",
+      "alt": "EICR Ventures",
+      "shape": "square",
+      "size": 84
+    },
+    {
+      "type": "identity",
+      "name": "John Zarranger",
+      "title": "Real Estate Agent",
+      "company": "EICR Ventures"
+    },
+    {
+      "type": "contact",
+      "phone": "+54-123-456789",
+      "email": "seanbrown@gmail.com",
+      "address": "P.O. Box 283 8562 Fusce Rd, Nebraska 20620",
+      "website": "www.eicrventures.com"
+    },
+    {
+      "type": "social",
+      "links": [
+        {
+          "network": "facebook",
+          "url": "https://facebook.com/yourname"
+        },
+        {
+          "network": "twitter",
+          "url": "https://x.com/yourname"
+        },
+        {
+          "network": "linkedin",
+          "url": "https://linkedin.com/in/yourname"
+        }
+      ]
+    }
+  ]
+}

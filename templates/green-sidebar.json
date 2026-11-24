@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "template_id": "green-sidebar",
+  "theme": {
+    "primary": "#4C6B5E",
+    "text": "#3B3B3B",
+    "muted": "#5B6470",
+    "bg": "#FFFFFF",
+    "accent2": "#F4C542",
+    "font": "Arial",
+    "spacing": "normal"
+  },
+  "blocks": [
+    {
+      "type": "avatar",
+      "src": "https://placehold.co/260x260.png",
+      "alt": "Jean Andrean",
+      "shape": "square",
+      "size": 130
+    },
+    {
+      "type": "identity",
+      "name": "Jean Andrean",
+      "title": "Creative Manager"
+    },
+    {
+      "type": "contact",
+      "address": "470 Route 211 East, Middletown NY 10940",
+      "phone": "+(001) 456 - 789",
+      "website": "www.yourwebsite.com",
+      "email": "yourmail@domain.com"
+    },
+    {
+      "type": "social",
+      "links": [
+        {
+          "network": "facebook",
+          "url": "https://facebook.com/yourname"
+        },
+        {
+          "network": "instagram",
+          "url": "https://instagram.com/yourname"
+        },
+        {
+          "network": "twitter",
+          "url": "https://x.com/yourname"
+        },
+        {
+          "network": "linkedin",
+          "url": "https://linkedin.com/in/yourname"
+        }
+      ]
+    }
+  ]
+}

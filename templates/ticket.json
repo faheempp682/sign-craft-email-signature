@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "template_id": "ticket",
+  "theme": {
+    "primary": "#8EE000",
+    "text": "#111111",
+    "muted": "#444444",
+    "bg": "#E6E0D0",
+    "accent2": "#F4C542",
+    "font": "Arial",
+    "spacing": "normal"
+  },
+  "blocks": [
+    {
+      "type": "avatar",
+      "src": "https://placehold.co/144x144.png",
+      "alt": "National Museum of Extinct Insects",
+      "shape": "square",
+      "size": 72
+    },
+    {
+      "type": "identity",
+      "name": "Jane Doe",
+      "title": "Curator",
+      "company": "National Museum of Extinct Insects"
+    },
+    {
+      "type": "contact",
+      "phone": "+1 555 010 2030",
+      "email": "jane@museum.org",
+      "website": "museum.org"
+    },
+    {
+      "type": "social",
+      "links": [
+        {
+          "network": "instagram",
+          "url": "https://instagram.com/yourname"
+        },
+        {
+          "network": "twitter",
+          "url": "https://x.com/yourname"
+        }
+      ]
+    }
+  ]
+}

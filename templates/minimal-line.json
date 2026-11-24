@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "template_id": "minimal-line",
+  "theme": {
+    "primary": "#2563EB",
+    "text": "#111827",
+    "muted": "#6B7280",
+    "bg": "#FFFFFF",
+    "accent2": "#F4C542",
+    "font": "Arial",
+    "spacing": "normal"
+  },
+  "blocks": [
+    {
+      "type": "avatar",
+      "src": "https://placehold.co/144x144.png",
+      "alt": "Sofia Marin",
+      "shape": "circle",
+      "size": 72
+    },
+    {
+      "type": "identity",
+      "name": "Sofia Marin",
+      "title": "Product Designer",
+      "company": "Northwind"
+    },
+    {
+      "type": "contact",
+      "phone": "+1 555 010 2030",
+      "email": "sofia@northwind.io",
+      "website": "northwind.io"
+    },
+    {
+      "type": "social",
+      "links": [
+        {
+          "network": "linkedin",
+          "url": "https://linkedin.com/in/yourname"
+        },
+        {
+          "network": "instagram",
+          "url": "https://instagram.com/yourname"
+        }
+      ]
+    }
+  ]
+}

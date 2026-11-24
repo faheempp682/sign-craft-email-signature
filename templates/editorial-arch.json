@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "template_id": "editorial-arch",
+  "theme": {
+    "primary": "#A9794D",
+    "text": "#1A1A1A",
+    "muted": "#6B7280",
+    "bg": "#E0D6CB",
+    "accent2": "#F4C542",
+    "font": "Georgia",
+    "spacing": "normal"
+  },
+  "blocks": [
+    {
+      "type": "avatar",
+      "src": "https://placehold.co/300x300.png",
+      "alt": "Hana Dulseta",
+      "shape": "arch",
+      "size": 150
+    },
+    {
+      "type": "identity",
+      "name": "Hana Dulseta",
+      "title": "Eleganto",
+      "company": "Hana."
+    },
+    {
+      "type": "contact",
+      "phone": "+1 234 567 890",
+      "email": "hanadulseta@email.com",
+      "address": "123 Main Road Center, California USA"
+    },
+    {
+      "type": "social",
+      "links": [
+        {
+          "network": "facebook",
+          "url": "https://facebook.com/yourname"
+        },
+        {
+          "network": "instagram",
+          "url": "https://instagram.com/yourname"
+        },
+        {
+          "network": "linkedin",
+          "url": "https://linkedin.com/in/yourname"
+        }
+      ]
+    },
+    {
+      "type": "disclaimer",
+      "text": "The European languages are members of the same family. Their separate existence."
+    }
+  ]
+}

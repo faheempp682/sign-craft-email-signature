@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "template_id": "dark-luxe",
+  "theme": {
+    "primary": "#C9A24B",
+    "text": "#F5F0E6",
+    "muted": "#B8B0A0",
+    "bg": "#111111",
+    "accent2": "#F4C542",
+    "font": "Georgia",
+    "spacing": "normal"
+  },
+  "blocks": [
+    {
+      "type": "avatar",
+      "src": "https://placehold.co/208x208.png",
+      "alt": "Adrian Vale",
+      "shape": "square",
+      "size": 104
+    },
+    {
+      "type": "identity",
+      "name": "Adrian Vale",
+      "title": "Creative Director",
+      "company": "Maison Vale"
+    },
+    {
+      "type": "contact",
+      "phone": "+33 1 23 45 67 89",
+      "email": "adrian@maisonvale.com",
+      "website": "maisonvale.com"
+    },
+    {
+      "type": "social",
+      "links": [
+        {
+          "network": "instagram",
+          "url": "https://instagram.com/yourname"
+        },
+        {
+          "network": "linkedin",
+          "url": "https://linkedin.com/in/yourname"
+        }
+      ]
+    }
+  ]
+}

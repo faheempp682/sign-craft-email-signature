@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "template_id": "circle-accent",
+  "theme": {
+    "primary": "#F7C948",
+    "text": "#222222",
+    "muted": "#6B7280",
+    "bg": "#EEEDE8",
+    "accent2": "#F7C948",
+    "font": "Arial",
+    "spacing": "normal"
+  },
+  "blocks": [
+    {
+      "type": "avatar",
+      "src": "https://placehold.co/300x300.png",
+      "alt": "Dandinie Vusfitcha",
+      "shape": "circle",
+      "size": 150
+    },
+    {
+      "type": "identity",
+      "name": "Dandinie Vusfitcha",
+      "title": "Graphic Designer",
+      "company": "Dand.io"
+    },
+    {
+      "type": "contact",
+      "phone": "+1234 567 890",
+      "email": "yourname@email.com",
+      "website": "www.yourcompany.com",
+      "address": "234 Bojong Koneng Rd #45 Mandalika Ave, Houston USA 82937"
+    }
+  ]
+}

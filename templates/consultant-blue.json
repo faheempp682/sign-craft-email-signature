@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "template_id": "consultant-blue",
+  "theme": {
+    "primary": "#0B0BA8",
+    "text": "#111111",
+    "muted": "#555B66",
+    "bg": "#FFFFFF",
+    "accent2": "#F2A31B",
+    "font": "Georgia",
+    "spacing": "normal"
+  },
+  "blocks": [
+    {
+      "type": "avatar",
+      "src": "https://placehold.co/240x240.png",
+      "alt": "Aura Salsabila",
+      "shape": "rounded",
+      "size": 120
+    },
+    {
+      "type": "identity",
+      "name": "Aura Salsabila",
+      "title": "Business Consultant",
+      "company": "Company Name"
+    },
+    {
+      "type": "contact",
+      "phone": "(022) 456 7890",
+      "email": "yourmail@office.com",
+      "website": "www.yourwebsite.com"
+    }
+  ]
+}

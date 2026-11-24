@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "template_id": "geometric",
+  "theme": {
+    "primary": "#263078",
+    "text": "#263078",
+    "muted": "#263078",
+    "bg": "#D9D3C6",
+    "accent2": "#F59A6B",
+    "font": "Arial",
+    "spacing": "normal"
+  },
+  "blocks": [
+    {
+      "type": "avatar",
+      "src": "https://placehold.co/240x240.png",
+      "alt": "Angelina Cours",
+      "shape": "circle",
+      "size": 120
+    },
+    {
+      "type": "identity",
+      "name": "Angelina Cours",
+      "title": "Director",
+      "company": "Your company name"
+    },
+    {
+      "type": "contact",
+      "phone": "000-827333-3837",
+      "address": "1234 your street here,",
+      "website": "www.example.com"
+    },
+    {
+      "type": "social",
+      "links": [
+        {
+          "network": "facebook",
+          "url": "https://facebook.com/yourname"
+        },
+        {
+          "network": "linkedin",
+          "url": "https://linkedin.com/in/yourname"
+        }
+      ]
+    }
+  ]
+}

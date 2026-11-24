@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "template_id": "classic",
+  "theme": {
+    "primary": "#1E3A8A",
+    "text": "#111827",
+    "muted": "#6B7280",
+    "font": "Arial",
+    "spacing": "normal"
+  },
+  "blocks": [
+    {
+      "type": "identity",
+      "name": "Jane Doe",
+      "title": "Senior Designer",
+      "company": "Acme Inc."
+    },
+    {
+      "type": "contact",
+      "phone": "+1 555 010 2030",
+      "email": "jane@acme.com",
+      "website": "acme.com"
+    },
+    {
+      "type": "social",
+      "links": [
+        {
+          "network": "linkedin",
+          "url": "https://linkedin.com/in/janedoe"
+        },
+        {
+          "network": "github",
+          "url": "https://github.com/janedoe"
+        }
+      ]
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "banner",
+      "src": "https://placehold.co/400x100.png",
+      "alt": "Spring campaign",
+      "href": "https://acme.com/spring",
+      "width": 400,
+      "height": 100
+    },
+    {
+      "type": "disclaimer",
+      "text": "This email is confidential and intended solely for the addressee."
+    }
+  ]
+}
