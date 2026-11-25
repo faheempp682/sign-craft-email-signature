@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "SignCraft",
-  description: "Beautiful email signatures that never break in Outlook.",
+  description: "Beautiful email signatures, built to Outlook-safe rules.",
 };
 
 export default function RootLayout({
