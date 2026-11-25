@@ -133,6 +133,13 @@ export function Sidebar({ email, role, groups, switcher, canInvite }: { email?: 
         )}
         {email && canInvite && <InviteDialog />}
         {email && (
+          <Link href="/settings" aria-current={path === "/settings" ? "page" : undefined} className="mt-2 flex h-9 w-full items-center justify-center gap-2 rounded-full text-sm font-medium text-white/90 transition-colors hover:bg-white/15">
+            <UserRoundedIcon size={17} />
+            <span className="hidden lg:exp:inline">Account settings</span>
+            <span className="sr-only lg:exp:hidden">Account settings</span>
+          </Link>
+        )}
+        {email && (
           <form action={signOut} className="mt-2">
             <button type="submit" aria-label={`Log out ${email}`} title="Log out" className="flex h-9 w-full cursor-pointer items-center justify-center gap-2 rounded-full border border-white/40 text-sm font-medium text-white transition-colors hover:bg-white/15">
               <LogoutIcon size={17} />
@@ -148,7 +155,7 @@ export function Sidebar({ email, role, groups, switcher, canInvite }: { email?: 
 /** Where you are on the left, the main action and the account menu on the right. Phones get every other link in the account menu. */
 export function Topbar({ email, groups }: { email?: string | null; groups: NavGroup[] }) {
   const path = usePathname();
-  const here = currentLink(groups, path);
+  const here = path === "/settings" ? { group: "Account", link: { href: "/settings", label: "Settings", icon: "mine" as const } } : currentLink(groups, path);
   const mainHrefs = new Set(MAIN_LINKS.map((l) => l.href));
   const more = groups.map((g) => ({ ...g, links: g.links.filter((l) => !mainHrefs.has(l.href)) })).filter((g) => g.links.length);
   return (
@@ -193,6 +200,9 @@ export function Topbar({ email, groups }: { email?: string | null; groups: NavGr
                 </div>
               ))}
             </div>
+            <Link href="/settings" className="flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm transition-colors hover:bg-secondary">
+              <UserRoundedIcon size={18} /> Account settings
+            </Link>
             {email && (
               <form action={signOut} className="mt-1 border-t border-border pt-1">
                 <button type="submit" className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-lg px-3 text-sm font-medium text-brand transition-colors hover:bg-secondary">

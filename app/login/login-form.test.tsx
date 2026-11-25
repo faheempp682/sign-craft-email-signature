@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("./actions", () => ({ authenticate: vi.fn(async () => ({})) }));
+vi.mock("./actions", () => ({ authenticate: vi.fn(async () => ({})), requestPasswordReset: vi.fn(async () => ({})) }));
 import { LoginForm } from "./login-form";
 
 afterEach(cleanup);
@@ -27,5 +27,15 @@ describe("LoginForm", () => {
   it("carries the safe next path", () => {
     const { container } = render(<LoginForm next="/editor" />);
     expect((container.querySelector('input[name="next"]') as HTMLInputElement).value).toBe("/editor");
+  });
+});
+
+describe("LoginForm forgot password", () => {
+  it("shows the reset form and returns to sign in", () => {
+    render(<LoginForm next="/create" />);
+    fireEvent.click(screen.getByRole("button", { name: "Forgot password?" }));
+    expect(screen.getByRole("button", { name: "Send reset link" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Back to sign in" }));
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeTruthy();
   });
 });

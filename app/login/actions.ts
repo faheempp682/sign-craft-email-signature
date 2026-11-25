@@ -61,6 +61,20 @@ export async function signUp(_prev: AuthState, form: FormData): Promise<AuthStat
   return { message: "Account created. Check your email for a confirmation link, then sign in." };
 }
 
+/** "Forgot password?": emails a reset link. The answer is the same whether or not the address has an account. */
+export async function requestPasswordReset(_prev: AuthState, form: FormData): Promise<AuthState> {
+  const supabase = await createClient();
+  if (!supabase) return NOT_CONFIGURED;
+  const email = String(form.get("email") ?? "").trim();
+  if (!email) return { error: "Enter your email address." };
+
+  const h = await headers();
+  const origin = h.get("origin") ?? `${h.get("x-forwarded-proto") ?? "http"}://${h.get("host")}`;
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${origin}/auth/callback?next=/reset-password` });
+  if (error && error.status === 429) return { error: "Too many requests. Wait a few minutes and try again." };
+  return { message: "If that email has an account, a reset link is on its way." };
+}
+
 export async function signOut() {
   const supabase = await createClient();
   await supabase?.auth.signOut();

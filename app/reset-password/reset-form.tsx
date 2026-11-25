@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { PasswordInput } from "@/components/password-input";
 import { createBrowserClient } from "@supabase/ssr";
 
 export function ResetPasswordForm() {
@@ -35,11 +36,11 @@ export function ResetPasswordForm() {
     router.refresh();
   }
 
-  if (ready === false) return <p role="alert" className="text-sm">This link is invalid or has expired. Ask for a new invitation, or <a className="underline" href="/login">sign in</a>.</p>;
+  if (ready === false) return <p role="alert" className="text-sm">This link is invalid or has expired. Request a new reset link from the <a className="underline" href="/login">sign-in page</a> (Forgot password?), or ask for a new invitation.</p>;
   return (
     <form onSubmit={submit} className="grid gap-3">
       <label htmlFor="new-password" className="text-sm font-medium">New password</label>
-      <input id="new-password" type="password" required minLength={8} autoComplete="new-password" className="field" value={password} onChange={(e) => setPassword(e.target.value)} />
+      <PasswordInput id="new-password" required minLength={8} autoComplete="new-password" className="field" value={password} onChange={(e) => setPassword(e.target.value)} />
       {error && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>}
       <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? "Saving…" : "Save password"}</button>
     </form>
