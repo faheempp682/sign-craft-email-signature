@@ -11,6 +11,11 @@ describe("isPublicPath", () => {
     for (const p of ["/api/sync/runs", "/api/sync/preview", "/api/sync/settings", "/api/sync/previews/abc/apply", "/api/sync/status", "/api/sync/test", "/api/sync/sources/google", "/api/sync", "/api/syncrun"]) expect(isPublicPath(p, false), p).toBe(false);
   });
 
+  it("opens the health cron endpoint and nothing next to it", () => {
+    expect(isPublicPath("/api/health/run", false)).toBe(true);
+    for (const p of ["/api/health/summary", "/api/health/status", "/api/health/findings", "/api/health/findings/abc/acknowledge", "/api/health/check", "/api/health/settings", "/api/health", "/api/health/running"]) expect(isPublicPath(p, false), p).toBe(false);
+  });
+
   it("matches whole path segments only, so lookalike private pages stay private", () => {
     for (const p of ["/create", "/create/x", "/campaigns", "/cards", "/browse", "/render", "/api/publicity", "/api/ai/design", "/admin", "/editor", "/api/google/push"]) expect(isPublicPath(p, false), p).toBe(false);
     for (const p of ["/create", "/campaigns", "/cards", "/browse", "/render"]) expect(isPublicPath(p, true), p).toBe(false);
