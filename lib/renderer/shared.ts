@@ -99,9 +99,38 @@ function renderSocial(b: Extract<Block, { type: "social" }>, { theme }: Ctx): st
   return `<div style="font-size:12px;line-height:18px;">${items.join(` <span style="color:${theme.muted};">|</span> `)}</div>`;
 }
 
+/**
+ * What a banner needs to become a tracked link. `sign` turns a payload into an opaque token (HMAC; the secret lives on
+ * the server, never in the renderer). Without these options, or with `track` false, banners render exactly as before.
+ */
+export type TrackPayload = { t: "r" | "b"; c?: string; s: string; h?: string; f?: string };
+export type TrackOptions = { baseUrl: string; signatureId: string; sign: (payload: TrackPayload) => string };
+
+// Rendering is fully synchronous, so a scoped module variable is safe and avoids threading options through every skin.
+let activeTrack: TrackOptions | undefined;
+
+/** Run `fn` with tracking options in force (restored afterwards, even on error). */
+export function withTracking<T>(opts: TrackOptions | undefined, fn: () => T): T {
+  const prev = activeTrack;
+  activeTrack = opts;
+  try {
+    return fn();
+  } finally {
+    activeTrack = prev;
+  }
+}
+
 export function renderBanner(b: Extract<Block, { type: "banner" }>): string {
-  const img = `<img src="${esc(b.src)}" width="${b.width}" height="${b.height}" alt="${esc(b.alt)}" style="display:block;border:0;width:${b.width}px;height:${b.height}px;" />`;
-  return b.href ? `<a href="${esc(b.href)}" target="_blank" style="text-decoration:none;">${img}</a>` : img;
+  const t = b.track && activeTrack ? activeTrack : undefined;
+  let src = b.src;
+  let href = b.href;
+  if (t) {
+    const base = t.baseUrl.replace(/\/+$/, "");
+    if (b.campaign_id) src = `${base}/b/${t.sign({ t: "b", c: b.campaign_id, s: t.signatureId, f: b.src })}`;
+    if (b.campaign_id || b.href) href = `${base}/r/${t.sign({ t: "r", c: b.campaign_id, s: t.signatureId, h: b.href })}`;
+  }
+  const img = `<img src="${esc(src)}" width="${b.width}" height="${b.height}" alt="${esc(b.alt)}" style="display:block;border:0;width:${b.width}px;height:${b.height}px;" />`;
+  return href ? `<a href="${esc(href)}" target="_blank" style="text-decoration:none;">${img}</a>` : img;
 }
 
 function renderDivider({ theme }: Ctx): string {

@@ -1,12 +1,12 @@
 import type { Block, SignatureDoc, Theme } from "@/lib/schema/document";
-import { GAP, TABLE_ATTRS, esc, fontStack, renderBlock, safeHttpsUrl, type Ctx } from "./shared";
+import { GAP, TABLE_ATTRS, esc, fontStack, renderBlock, safeHttpsUrl, withTracking, type Ctx, type TrackOptions } from "./shared";
 import { isCardTemplate, renderCardBlock, renderCardTemplate } from "./cards";
 
 export { esc, safeHttpsUrl, renderBlock };
 
 /** Block HTML exactly as the active template renders it (used by click-to-edit to map preview cells back to blocks). */
-export function renderBlockForDoc(b: Block, doc: SignatureDoc): string {
-  return isCardTemplate(doc.template_id) ? renderCardBlock(b, doc) : renderBlock(b, { theme: doc.theme });
+export function renderBlockForDoc(b: Block, doc: SignatureDoc, options?: RenderOptions): string {
+  return withTracking(options?.tracking, () => (isCardTemplate(doc.template_id) ? renderCardBlock(b, doc) : renderBlock(b, { theme: doc.theme })));
 }
 
 /* ---------- table helpers ---------- */
@@ -60,16 +60,23 @@ function layoutMinimal(doc: SignatureDoc): string {
   return wrap(stackRows(renderAll(blocks, ctx), gap), doc.theme);
 }
 
+export type RenderOptions = {
+  /** Banners with `track: true` get signed /r and /b links. Absent: output is identical to before tracking existed. */
+  tracking?: TrackOptions;
+};
+
 /** Deterministic JSON -> Outlook-safe table HTML. Validate `doc` with SignatureDocSchema before calling. */
-export function renderToEmailHtml(doc: SignatureDoc): string {
-  switch (doc.template_id) {
-    case "classic":
-      return layoutClassic(doc);
-    case "modern-split":
-      return layoutModernSplit(doc);
-    case "minimal":
-      return layoutMinimal(doc);
-    default:
-      return renderCardTemplate(doc);
-  }
+export function renderToEmailHtml(doc: SignatureDoc, options?: RenderOptions): string {
+  return withTracking(options?.tracking, () => {
+    switch (doc.template_id) {
+      case "classic":
+        return layoutClassic(doc);
+      case "modern-split":
+        return layoutModernSplit(doc);
+      case "minimal":
+        return layoutMinimal(doc);
+      default:
+        return renderCardTemplate(doc);
+    }
+  });
 }

@@ -78,6 +78,10 @@ export const BannerBlock = z.object({
   href: httpsUrl.optional(),
   width: z.number().int().min(100).max(600).default(400),
   height: z.number().int().min(20).max(300).default(100),
+  /** Wrap the link in a signed click-tracking redirect (/r/<token>). Optional; absent or false renders exactly as before. */
+  track: z.boolean().optional(),
+  /** A banner campaign (banner_campaigns.id) whose schedule and A/B variants decide the image (/b/<token>). Needs `track` to count clicks. */
+  campaign_id: z.string().uuid().optional(),
 });
 
 export const DividerBlock = z.object({
