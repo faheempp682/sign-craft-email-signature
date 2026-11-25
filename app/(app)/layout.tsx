@@ -15,7 +15,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (supabase) {
     const [cards, polish, team] = await Promise.all([featureEnabled(supabase, "digital_card"), featureEnabled(supabase, "designer_polish"), isAdmin ? featureEnabled(supabase, "team_deploy") : Promise.resolve(false)]);
     // Admins manage the team; everyone else edits their own brand-locked signature.
-    extras.push(isAdmin && team === true ? { href: "/team", label: "Team", icon: "team" } : { href: "/team/mine", label: "My team signature", icon: "team" });
+    let attention = 0;
+    if (isAdmin && team === true && (await featureEnabled(supabase, "health_monitor")) === true) {
+      // Open signature-health findings (someone edited or removed a deployed signature). Admin-only rows under row-level security.
+      const { count } = await supabase.from("health_findings").select("id", { count: "exact", head: true }).eq("status", "open");
+      attention = count ?? 0;
+    }
+    extras.push(isAdmin && team === true ? { href: "/team", label: "Team", icon: "team", badge: attention } : { href: "/team/mine", label: "My team signature", icon: "team" });
     if (cards === true) extras.push({ href: "/cards", label: "Digital card", icon: "cards" });
     if ((role && atLeast(role, "designer")) || polish === true) extras.push({ href: "/polish", label: "Polish", icon: "polish" });
   }

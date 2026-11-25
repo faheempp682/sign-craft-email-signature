@@ -39,7 +39,11 @@ const ITEMS: Item[] = [
  * Links that depend on what the signed-in person may use (feature flags, role). The layout works out the list on the
  * server; this file only draws it. `team` is added when the team screens exist.
  */
-export type NavExtra = { href: string; label: string; icon: "cards" | "polish" | "team" };
+/** `badge` is a count that needs attention (for example open signature-health findings); 0 or absent shows nothing. */
+export type NavExtra = { href: string; label: string; icon: "cards" | "polish" | "team"; badge?: number };
+
+/** What a screen reader hears for a link with a count. */
+export const navLabel = (label: string, badge?: number) => (badge ? `${label}, ${badge} need attention` : label);
 const EXTRA_ICON: Record<NavExtra["icon"], SolarIcon> = { cards: CardIcon, polish: PaletteRoundIcon, team: UsersGroupTwoRoundedIcon };
 
 export function Logo({ className }: { className?: string }) {
@@ -52,7 +56,7 @@ export function Logo({ className }: { className?: string }) {
 
 /** Slim icon rail, the primary navigation on desktop. */
 export function Rail({ email, isAdmin = false, extras = [] }: { email?: string | null; isAdmin?: boolean; extras?: NavExtra[] }) {
-  const items = [...ITEMS, ...extras.map((x) => ({ href: x.href, label: x.label, Icon: EXTRA_ICON[x.icon] })), ...(isAdmin ? [{ href: "/admin", label: "Admin", Icon: ShieldCheckIcon }] : [])];
+  const items = [...ITEMS, ...extras.map((x) => ({ href: x.href, label: x.label, Icon: EXTRA_ICON[x.icon], badge: x.badge })), ...(isAdmin ? [{ href: "/admin", label: "Admin", Icon: ShieldCheckIcon, badge: undefined as number | undefined }] : [])];
   const path = usePathname();
   return (
     <TooltipProvider>
@@ -61,21 +65,23 @@ export function Rail({ email, isAdmin = false, extras = [] }: { email?: string |
           <Logo />
         </Link>
         <nav aria-label="Main" className="mt-6 flex flex-col gap-2">
-          {items.map(({ href, label, Icon }) => {
+          {items.map(({ href, label, Icon, ...rest }) => {
+            const badge = "badge" in rest ? (rest as { badge?: number }).badge : undefined;
             const active = path.startsWith(href);
             return (
               <Tooltip key={href}>
                 <TooltipTrigger asChild>
                   <Link
                     href={href}
-                    aria-label={label}
+                    aria-label={navLabel(label, badge)}
                     aria-current={active ? "page" : undefined}
                     className={cn(
-                      "grid size-10 place-items-center rounded-xl transition-colors duration-150",
+                      "relative grid size-10 place-items-center rounded-xl transition-colors duration-150",
                       active ? "bg-secondary text-foreground" : "text-muted-foreground hover:bg-secondary hover:text-foreground",
                     )}
                   >
                     <Icon size={22} />
+                    {badge ? <span aria-hidden="true" className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-brand px-1 text-[10px] font-semibold leading-4 text-white">{badge > 9 ? "9+" : badge}</span> : null}
                   </Link>
                 </TooltipTrigger>
                 <TooltipContent side="right">{label}</TooltipContent>
@@ -131,8 +137,9 @@ export function Panel({ isAdmin = false, extras = [] }: { isAdmin?: boolean; ext
       {extras.map((x) => {
         const Icon = EXTRA_ICON[x.icon];
         return (
-          <Link key={x.href} href={x.href} className={row(path.startsWith(x.href))}>
+          <Link key={x.href} href={x.href} aria-label={navLabel(x.label, x.badge)} className={row(path.startsWith(x.href))}>
             <Icon size={18} /> {x.label}
+            {x.badge ? <span aria-hidden="true" className="ml-auto rounded-full bg-brand px-2 text-xs font-semibold leading-5 text-white">{x.badge > 99 ? "99+" : x.badge}</span> : null}
           </Link>
         );
       })}
@@ -154,7 +161,7 @@ export function Panel({ isAdmin = false, extras = [] }: { isAdmin?: boolean; ext
 }
 
 export function Topbar({ email, isAdmin = false, extras = [] }: { email?: string | null; isAdmin?: boolean; extras?: NavExtra[] }) {
-  const more = [...extras.map((x) => ({ href: x.href, label: x.label, Icon: EXTRA_ICON[x.icon] })), ...(isAdmin ? [{ href: "/admin", label: "Admin", Icon: ShieldCheckIcon }] : [])];
+  const more = [...extras.map((x) => ({ href: x.href, label: x.label, Icon: EXTRA_ICON[x.icon], badge: x.badge })), ...(isAdmin ? [{ href: "/admin", label: "Admin", Icon: ShieldCheckIcon, badge: undefined as number | undefined }] : [])];
   return (
     <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-border bg-background/85 px-4 backdrop-blur md:px-6">
       <span className="inline-flex h-9 max-w-[50%] items-center rounded-lg border border-border bg-card px-3 text-sm">
@@ -168,9 +175,10 @@ export function Topbar({ email, isAdmin = false, extras = [] }: { email?: string
               <HamburgerMenuIcon size={18} /> More
             </summary>
             <div className="absolute right-0 z-30 mt-2 w-52 rounded-xl border border-border bg-card p-1 shadow-lg">
-              {more.map(({ href, label, Icon }) => (
-                <Link key={href} href={href} className="flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm transition-colors hover:bg-secondary">
+              {more.map(({ href, label, Icon, badge }) => (
+                <Link key={href} href={href} aria-label={navLabel(label, badge)} className="flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm transition-colors hover:bg-secondary">
                   <Icon size={18} /> {label}
+                  {badge ? <span aria-hidden="true" className="ml-auto rounded-full bg-brand px-2 text-xs font-semibold leading-5 text-white">{badge > 99 ? "99+" : badge}</span> : null}
                 </Link>
               ))}
             </div>
