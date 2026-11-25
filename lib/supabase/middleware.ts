@@ -1,10 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isPublicPath } from "@/lib/public-routes";
 import { getSupabaseEnv } from "./env";
 
-const PUBLIC_PREFIXES = ["/login", "/auth"];
-
-/** Refreshes the session cookie on every request and gates everything except the login routes. */
+/** Refreshes the session cookie on every request and gates everything except the public routes (see lib/public-routes.ts). */
 export async function updateSession(request: NextRequest) {
   const env = getSupabaseEnv();
   if (!env) return NextResponse.next({ request }); // not configured: run as a local-only editor
@@ -27,7 +26,7 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname, search } = request.nextUrl;
-  const isPublic = PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  const isPublic = isPublicPath(pathname);
 
   if (!user && !isPublic) {
     if (pathname.startsWith("/api/")) {

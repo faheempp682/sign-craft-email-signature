@@ -93,6 +93,8 @@ describe("row-level security", () => {
 
   it("members cannot change flags, limits, roles or overrides", async () => {
     const u = await t.addUser(email("member"));
+    const snapshot = async () => JSON.stringify((await t.db.query("select feature, default_enabled, min_role from public.feature_flags order by feature")).rows);
+    const before = await snapshot();
     const affected = (sql: string) => t.as(u, async () => (await t.db.query(sql)).affectedRows ?? 0);
     expect(await affected("update public.feature_flags set default_enabled = false")).toBe(0);
     expect(await affected("update public.ai_limits set per_day = 100000")).toBe(0);
@@ -104,8 +106,7 @@ describe("row-level security", () => {
     await expect(
       t.as(u, () => t.db.query("insert into public.memberships (org_id, user_id, role) select id, gen_random_uuid(), 'admin' from public.organizations")),
     ).rejects.toThrow();
-    // the flags are untouched: only animated_gif is off by default
-    expect(await count("select count(*)::int as c from public.feature_flags where default_enabled = false")).toBe(1);
+    expect(await snapshot()).toBe(before); // the flags are untouched
   });
 
   it("members cannot promote themselves", async () => {

@@ -22,6 +22,13 @@ export const FEATURES = {
   designer_polish: "Designer polish",
   analytics: "Analytics",
   team_deploy: "Team deployment",
+  digital_card: "Digital business card",
+  campaigns: "Banner campaigns",
+  crm_sync: "CRM sync",
+  directory_sync: "Directory import",
+  health_monitor: "Signature health monitor",
+  agency_mode: "Agency mode",
+  render_previews: "Rendered previews",
 } as const;
 export type Feature = keyof typeof FEATURES;
 export const isFeature = (v: unknown): v is Feature => typeof v === "string" && Object.hasOwn(FEATURES, v);
