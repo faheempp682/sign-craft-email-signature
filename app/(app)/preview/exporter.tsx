@@ -8,6 +8,9 @@ import { TEMPLATE_META, getTemplate } from "@/lib/templates";
 import { copyHtmlRich, downloadHtm } from "@/lib/export-client";
 import { CLIENTS, CLIENT_IDS, previewDocument, type ClientId } from "@/lib/preview-clients";
 import { GmailPush } from "@/components/gmail-push";
+import { knownDifferences } from "@/lib/render/differences";
+import { ClientBadge } from "./render-ui";
+import { RenderAll } from "./render-all";
 
 export function Exporter({ initial }: { initial: TemplateId }) {
   const [id, setId] = useState<TemplateId>(initial);
@@ -19,6 +22,7 @@ export function Exporter({ initial }: { initial: TemplateId }) {
   const doc = getTemplate(id).doc;
   const html = useMemo(() => renderToEmailHtml(doc), [doc]);
   const srcDoc = previewDocument(html, client, dark);
+  const differences = useMemo(() => knownDifferences(html, client), [html, client]);
   const frameWidth = CLIENTS[client].width;
 
   async function copyRich() {
@@ -46,8 +50,9 @@ export function Exporter({ initial }: { initial: TemplateId }) {
               </button>
             ))}
           </div>
-          <span>{CLIENTS[client].label} {dark ? "dark" : "light"} · approximation of the message pane</span>
+          <span>{CLIENTS[client].label} {dark ? "dark" : "light"}</span>
         </div>
+        <ClientBadge client={client} />
         <div className="bg-surface-2 p-0 sm:p-4">
           <iframe
             title={`Signature preview, ${CLIENTS[client].label}`}
@@ -58,7 +63,7 @@ export function Exporter({ initial }: { initial: TemplateId }) {
           />
         </div>
         <p className="border-t border-line px-4 py-2 text-xs text-muted">
-          Not the clients&apos; real rendering engines. Always send yourself a test email. <Link href="/guides" className="font-medium text-accent underline underline-offset-4">Install guides</Link>
+          The frame above is always Chrome. Only the images from Render in all engines come from real WebKit and Firefox. Always send yourself a test email. <Link href="/guides" className="font-medium text-accent underline underline-offset-4">Install guides</Link>
         </p>
       </section>
 
@@ -81,6 +86,27 @@ export function Exporter({ initial }: { initial: TemplateId }) {
         </div>
         <GmailPush doc={doc} returnTo="/preview" />
       </aside>
+
+      <section className="card lg:col-span-2" aria-label="Known differences" data-testid="known-differences">
+        <div className="border-b border-line px-4 py-3">
+          <h2 className="text-sm font-semibold">Known differences in {CLIENTS[client].label}</h2>
+          <p className="text-xs text-muted">Worked out from this signature&apos;s HTML and documented client behaviour. A prediction, not a test in the real client.</p>
+        </div>
+        {differences.length ? (
+          <ul className="divide-y divide-line">
+            {differences.map((d) => (
+              <li key={d.id} className="flex flex-wrap gap-x-3 gap-y-1 px-4 py-3 text-sm">
+                <span className="eyebrow w-16 shrink-0">{d.severity === "visible" ? "Visible" : d.severity === "minor" ? "Minor" : "Note"}</span>
+                <span className="min-w-0 flex-1">{d.text}{d.source && <span className="block text-xs text-muted">Source: {d.source}</span>}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="px-4 py-3 text-sm text-muted">Nothing in this signature is known to differ here.</p>
+        )}
+      </section>
+
+      <RenderAll doc={doc} dark={dark} filename={id} />
 
       <section className="card overflow-hidden lg:col-span-2" aria-label="Source">
         <div role="tablist" className="flex gap-1 border-b border-line p-2">

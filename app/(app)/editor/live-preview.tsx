@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { SignatureDoc } from "@/lib/schema/document";
 import { mapBlockElements } from "@/lib/editor/preview-map";
-import { CLIENTS, type ClientId } from "@/lib/preview-clients";
+import { CLIENTS, clientHtml, type ClientId } from "@/lib/preview-clients";
+import { ClientBadge } from "@/app/(app)/preview/render-ui";
 
 export type Snapshot = { html: string; parsed: SignatureDoc; ids: string[] };
 export type PickHint = { text: string; offset: number };
@@ -86,7 +87,8 @@ export function LivePreview({
     const c = CLIENTS[client];
     const t = dark ? c.dark : c.light;
     doc.body.style.cssText = `margin:${c.width ? 14 : 24}px;background:${t.bg};color:${t.ink};font-family:${c.font};font-size:${c.size};`;
-    doc.body.innerHTML = snapshot.html;
+    // Client simulations (Outlook Word rules, Gmail clean-up, dark mode) change styles only, never the table structure the click map relies on.
+    doc.body.innerHTML = clientHtml(snapshot.html, client, dark);
     fit();
     const map = mapBlockElements(doc.body, snapshot.parsed, snapshot.ids);
     blockMap.current = map;
@@ -98,6 +100,8 @@ export function LivePreview({
 
   return (
     // allow-same-origin lets the editor read the DOM for click mapping. Scripts stay disabled, so injected markup can never run code.
+    <div>
+    <ClientBadge client={client} />
     <div className="bg-surface-2 p-0 sm:p-4">
     <iframe
       ref={frame}
@@ -108,6 +112,7 @@ export function LivePreview({
       style={{ width: CLIENTS[client].width ?? "100%" }}
       className="mx-auto block h-[460px] max-w-full border-line bg-white sm:rounded-lg sm:border"
     />
+    </div>
     </div>
   );
 }

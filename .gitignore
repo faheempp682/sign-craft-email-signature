@@ -46,3 +46,4 @@ client-pack/
 # QA screenshots
 shots/
 vision-smoke/
+render-matrix/
