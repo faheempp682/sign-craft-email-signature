@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDb, type TestDb } from "./db-harness";
+import { AI_FEATURES, FEATURES } from "./roles";
 
 /** These run the real migrations in Postgres (PGlite), so they test the actual RLS policies and SQL functions. */
 
@@ -18,6 +19,21 @@ beforeAll(async () => {
 }, 60_000);
 afterAll(async () => {
   await t.db.close();
+});
+
+describe("code and database agree", () => {
+  it("every feature in the TypeScript list is seeded, and nothing else is", async () => {
+    const seeded = (await t.db.query<{ feature: string }>("select feature from public.feature_flags order by 1")).rows.map((r) => r.feature);
+    expect(seeded).toEqual(Object.keys(FEATURES).sort());
+  });
+
+  it("every AI feature has limits for every role", async () => {
+    const rows = (await t.db.query<{ feature: string; role: string }>("select feature, role from public.ai_limits")).rows;
+    for (const feature of AI_FEATURES) {
+      expect(rows.filter((r) => r.feature === feature).map((r) => r.role).sort()).toEqual(["admin", "designer", "member"]);
+    }
+    expect([...new Set(rows.map((r) => r.feature))].sort()).toEqual([...AI_FEATURES].sort());
+  });
 });
 
 describe("sign-up", () => {
