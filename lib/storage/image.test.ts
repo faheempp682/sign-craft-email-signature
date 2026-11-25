@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { sniffImage } from "./image";
 import { getBunnyConfig, uploadToBunny } from "./bunny";
 import { fitBanner } from "../editor/upload";
+import { BannerBlock } from "../schema/document";
 import { isEmailAllowed, safeNext } from "../supabase/auth-utils";
 
 const png = (w: number, h: number) => {
@@ -68,6 +69,23 @@ describe("fitBanner", () => {
     expect(fitBanner(1200, 300)).toEqual({ width: 600, height: 150 });
     expect(fitBanner(400, 100)).toEqual({ width: 400, height: 100 });
     expect(fitBanner(0, 0)).toBeNull();
+  });
+
+  it("never produces a size the document schema rejects (regression: a square upload made height 400, above the 300 limit)", () => {
+    for (const [w, h] of [[400, 400], [1000, 1000], [300, 900], [5000, 40], [50, 50], [1200, 3000], [600, 600], [10, 400]]) {
+      const fit = fitBanner(w, h)!;
+      expect(fit.width).toBeGreaterThanOrEqual(100);
+      expect(fit.width).toBeLessThanOrEqual(600);
+      expect(fit.height).toBeGreaterThanOrEqual(20);
+      expect(fit.height).toBeLessThanOrEqual(300);
+      expect(BannerBlock.safeParse({ type: "banner", src: "https://cdn.example.com/a.png", alt: "", ...fit }).success).toBe(true);
+    }
+  });
+
+  it("keeps the aspect ratio when it can, by shrinking the width to respect the height limit", () => {
+    expect(fitBanner(400, 400)).toEqual({ width: 300, height: 300 });
+    expect(fitBanner(1000, 1000)).toEqual({ width: 300, height: 300 });
+    expect(fitBanner(1200, 600)).toEqual({ width: 600, height: 300 });
   });
 });
 

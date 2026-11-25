@@ -47,3 +47,11 @@ export function sniffImage(b: Uint8Array): ImageInfo | null {
 function dims(info: ImageInfo): ImageInfo | null {
   return info.width > 0 && info.height > 0 && info.width <= 10_000 && info.height <= 10_000 ? info : null;
 }
+
+/** True when the first bytes are a PNG / GIF / JPEG signature, even if the declared size is unusable. */
+export function hasImageSignature(b: Uint8Array): boolean {
+  const png = b.length >= 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47;
+  const gif = b.length >= 6 && b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x38;
+  const jpg = b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff;
+  return png || gif || jpg;
+}
