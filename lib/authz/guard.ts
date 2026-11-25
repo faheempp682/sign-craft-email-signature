@@ -58,6 +58,18 @@ async function readRole(supabase: SupabaseClient): Promise<Role> {
   return data;
 }
 
+/** The signed-in user's role for server-rendered pages. null when signed out, Supabase is off, or access control is unavailable. */
+export async function currentRole(): Promise<Role | null> {
+  const g = await requireUser();
+  if (!g.ok) return null;
+  try {
+    return await roleOf(g.ctx);
+  } catch (e) {
+    if (e instanceof AuthzUnavailable) return null;
+    throw e;
+  }
+}
+
 /** Signed in AND at least `min`. 403 otherwise. */
 export async function requireRole(min: Role, messages: Messages = {}): Promise<Guard<UserCtx & { role: Role }>> {
   const g = await requireUser(messages);

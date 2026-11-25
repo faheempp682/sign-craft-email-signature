@@ -15,6 +15,7 @@ import { AddCircleIcon } from "@solar-icons/react/bold-duotone/add-circle";
 import { LayersIcon } from "@solar-icons/react/bold-duotone/layers";
 import { DocumentTextIcon } from "@solar-icons/react/bold-duotone/document-text";
 import { BookIcon } from "@solar-icons/react/bold-duotone/book";
+import { ShieldCheckIcon } from "@solar-icons/react/bold-duotone/shield-check";
 import { signOut } from "@/app/login/actions";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -39,7 +40,8 @@ export function Logo({ className }: { className?: string }) {
 }
 
 /** Slim icon rail, the primary navigation on desktop. */
-export function Rail({ email }: { email?: string | null }) {
+export function Rail({ email, isAdmin = false }: { email?: string | null; isAdmin?: boolean }) {
+  const items = isAdmin ? [...ITEMS, { href: "/admin", label: "Admin", Icon: ShieldCheckIcon }] : ITEMS;
   const path = usePathname();
   return (
     <TooltipProvider>
@@ -48,7 +50,7 @@ export function Rail({ email }: { email?: string | null }) {
           <Logo />
         </Link>
         <nav aria-label="Main" className="mt-6 flex flex-col gap-2">
-          {ITEMS.map(({ href, label, Icon }) => {
+          {items.map(({ href, label, Icon }) => {
             const active = path.startsWith(href);
             return (
               <Tooltip key={href}>
@@ -93,7 +95,7 @@ export function Rail({ email }: { email?: string | null }) {
 }
 
 /** Contextual side panel, mirrors the reference's "New task / Inspirations / Project" column. */
-export function Panel() {
+export function Panel({ isAdmin = false }: { isAdmin?: boolean }) {
   const path = usePathname();
   const row = (active: boolean) =>
     cn(
@@ -115,6 +117,11 @@ export function Panel() {
       <Link href="/guides" className={row(path.startsWith("/guides"))}>
         <BookIcon size={18} /> Install guides
       </Link>
+      {isAdmin && (
+        <Link href="/admin" className={row(path.startsWith("/admin"))}>
+          <ShieldCheckIcon size={18} /> Admin
+        </Link>
+      )}
 
       <p className="mt-6 px-3 pb-2 text-xs font-medium text-muted-foreground">Project</p>
       <Link href="/signatures#mine" className={row(false)}>
@@ -127,13 +134,18 @@ export function Panel() {
   );
 }
 
-export function Topbar({ email }: { email?: string | null }) {
+export function Topbar({ email, isAdmin = false }: { email?: string | null; isAdmin?: boolean }) {
   return (
     <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-border bg-background/85 px-4 backdrop-blur md:px-6">
       <span className="inline-flex h-9 max-w-[50%] items-center rounded-lg border border-border bg-card px-3 text-sm">
         <span className="truncate" title={email ?? undefined}>{email ?? "Personal team"}</span>
       </span>
       <div className="flex items-center gap-2">
+        {isAdmin && (
+          <Link href="/admin" className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm transition-colors hover:bg-secondary md:hidden">
+            <ShieldCheckIcon size={18} /> Admin
+          </Link>
+        )}
         <Link href="/signatures" className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm transition-colors hover:bg-secondary">
           <QuestionCircleIcon size={18} /> Help
         </Link>
