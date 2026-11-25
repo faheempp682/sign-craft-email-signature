@@ -38,7 +38,7 @@ export function Exporter({ initial }: { initial: TemplateId }) {
     <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
       <section className="card overflow-hidden" aria-label="Preview">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-2 text-xs text-muted">
-          <div role="group" aria-label="Email client" className="flex gap-1">
+          <div role="group" aria-label="Email client" className="flex flex-wrap gap-1">
             {CLIENT_IDS.map((c) => (
               <button
                 key={c}

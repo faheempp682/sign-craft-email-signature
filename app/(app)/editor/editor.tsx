@@ -506,7 +506,7 @@ export function Editor({ initial, explicit, aiNotice = false, saved, canSave = f
   return (
     <div className="grid gap-6 lg:grid-cols-[400px_1fr]">
       {/* ---------- controls ---------- */}
-      <div className="space-y-5">
+      <div className="min-w-0 space-y-5">
         {polishId && <PolishDeliverBanner requestId={polishId} doc={valid && current ? current.parsed : null} />}
         {showAiNotice && (
           <div role="status" data-testid="ai-notice" className="card flex items-start justify-between gap-3 border-accent bg-accent-soft p-4 text-sm">
@@ -630,10 +630,10 @@ export function Editor({ initial, explicit, aiNotice = false, saved, canSave = f
       </div>
 
       {/* ---------- live preview ---------- */}
-      <div className="lg:sticky lg:top-8 lg:self-start">
+      <div className="min-w-0 lg:sticky lg:top-8 lg:self-start">
         <section className="card overflow-hidden" aria-label="Live preview">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-2 text-xs text-muted">
-            <div role="group" aria-label="Email client" className="flex gap-1">
+            <div role="group" aria-label="Email client" className="flex flex-wrap gap-1">
               {CLIENT_IDS.map((c) => (
                 <button
                   key={c}
