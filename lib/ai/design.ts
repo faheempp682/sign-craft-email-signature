@@ -30,10 +30,8 @@ export class DesignError extends Error {
 
 /* ---------- prompt ---------- */
 
-export const SYSTEM_PROMPT = `You design email signatures. Reply with ONE JSON object and nothing else (no markdown, no commentary):
-{"reply": string, "doc": SignatureDoc}
-
-SignatureDoc:
+/** The document format and layouts, shared by every prompt that asks the model for a SignatureDoc. */
+export const SCHEMA_PROMPT = `SignatureDoc:
 {
   "version": 1,
   "template_id": ${TEMPLATE_IDS.map((t) => `"${t}"`).join(" | ")},
@@ -55,7 +53,12 @@ Layouts:
 - modern-split: the avatar sits left of identity/contact/social with an accent rule between; remaining blocks go underneath.
 - minimal: text only. avatar and divider blocks are ignored.
 
-Rules:
+`;
+
+export const SYSTEM_PROMPT = `You design email signatures. Reply with ONE JSON object and nothing else (no markdown, no commentary):
+{"reply": string, "doc": SignatureDoc}
+
+${SCHEMA_PROMPT}Rules:
 1. Use only facts the user gave. For anything missing use obvious placeholders: name "Your Name", title "Your Title", company "Your Company", email "you@example.com", phone "+1 555 000 0000", website "yourcompany.com". Never invent real-looking people, companies, URLs or social handles.
 2. Images: avatar src must be https://placehold.co/160x160.png and banner src https://placehold.co/WIDTHxHEIGHT.png (matching the block's width/height). No other image hosts. Add an avatar only if the user wants a photo or logo. Add a banner only if they want a promo, banner or campaign.
 3. Social links: include only networks the user mentioned, using the https URL they gave when there is one. Omit the social block otherwise.
@@ -106,7 +109,7 @@ export function sanitizeDoc(doc: SignatureDoc, userPrompt: string): SignatureDoc
   return { ...doc, blocks };
 }
 
-const formatIssues = (error: z.ZodError) =>
+export const formatIssues = (error: z.ZodError) =>
   error.issues
     .slice(0, 8)
     .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
