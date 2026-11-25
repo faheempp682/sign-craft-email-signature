@@ -35,7 +35,7 @@ export function createBlock(type: BlockType): Block {
 export type FieldSpec = {
   key: string;
   label: string;
-  kind: "text" | "textarea" | "number" | "select";
+  kind: "text" | "textarea" | "number" | "select" | "toggle";
   options?: readonly string[];
   hint?: string;
   /** Shows an "Upload image" button that stores the file on the CDN and fills this field with its URL. */
@@ -66,12 +66,14 @@ export const FIELDS: Record<Exclude<BlockType, "social" | "divider">, FieldSpec[
     { key: "href", label: "Link (optional)", kind: "text" },
     { key: "width", label: "Width (px)", kind: "number" },
     { key: "height", label: "Height (px)", kind: "number" },
+    { key: "track", label: "Track clicks on this banner", kind: "toggle", hint: "Counts clicks in Admin > Analytics. Needs a saved signature and click tracking set up by an admin." },
   ],
   disclaimer: [{ key: "text", label: "Text", kind: "textarea" }],
 };
 
 /** Blank text inputs become `undefined` so optional schema fields stay valid. */
-export function cleanValue(kind: FieldSpec["kind"], raw: string): string | number | undefined {
+export function cleanValue(kind: FieldSpec["kind"], raw: string): string | number | boolean | undefined {
+  if (kind === "toggle") return raw === "true" ? true : undefined;
   if (kind === "number") return raw === "" ? undefined : Number(raw);
   return raw === "" ? undefined : raw;
 }

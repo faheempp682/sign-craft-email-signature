@@ -6,6 +6,7 @@ import { TEMPLATE_IDS, type TemplateId } from "@/lib/schema/document";
 import { renderToEmailHtml } from "@/lib/renderer/email-html";
 import { TEMPLATE_META, getTemplate } from "@/lib/templates";
 import { copyHtmlRich, downloadHtm } from "@/lib/export-client";
+import { darkVariantHtml } from "@/lib/dark";
 import { CLIENTS, CLIENT_IDS, previewDocument, type ClientId } from "@/lib/preview-clients";
 import { GmailPush } from "@/components/gmail-push";
 import { knownDifferences } from "@/lib/render/differences";
@@ -82,6 +83,8 @@ export function Exporter({ initial }: { initial: TemplateId }) {
           </button>
           <button className="btn btn-primary w-full" onClick={copyRich}>Copy as rich text</button>
           <button className="btn w-full" onClick={download}>Download .htm</button>
+          <button className="btn w-full" onClick={() => downloadHtm(darkVariantHtml(doc).html, `${id}-dark-variant.htm`)}>Download dark-mode variant</button>
+          <p className="text-xs text-muted">A copy with colours adjusted to stay readable on dark backgrounds. Mail apps decide for themselves how to show dark mode, so test it.</p>
           <p role="status" aria-live="polite" className="min-h-5 text-sm text-muted">{status}</p>
         </div>
         <GmailPush doc={doc} returnTo="/preview" />

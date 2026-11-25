@@ -25,6 +25,10 @@ import { AutofillPanel } from "./autofill-panel";
 import type { ApplyResult } from "@/lib/ai/apply-facts";
 import { applyAllFixes, lintDoc, scoreOf, type AssetMap, type Issue } from "@/lib/linter";
 import { CLIENTS, CLIENT_IDS, type ClientId } from "@/lib/preview-clients";
+import { exportHtml } from "@/lib/editor/export-html";
+import { insertDisclaimer } from "@/lib/disclaimers";
+import { DisclaimerPicker } from "@/components/disclaimer-picker";
+import { PolishDeliverBanner } from "@/app/(app)/polish/deliver-banner";
 
 const MAX_BLOCKS = 30;
 const AUTOSAVE_MS = 400;
@@ -104,6 +108,17 @@ function Field({ spec, value, error, id, onChange, onUpload, crop, gif }: { spec
     } finally {
       setBusy(false);
     }
+  }
+  if (spec.kind === "toggle") {
+    return (
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor={id} className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium">
+          <input id={id} type="checkbox" data-field={spec.key} className="size-5" checked={v === "true"} onChange={(e) => onChange(e.target.checked ? "true" : "")} aria-describedby={spec.hint ? `${id}-hint` : undefined} />
+          {spec.label}
+        </label>
+        {spec.hint && <p id={`${id}-hint`} className="text-xs text-muted">{spec.hint}</p>}
+      </div>
+    );
   }
   const common = { id, value: v, "data-field": spec.key, "aria-invalid": !!error, "aria-describedby": error ? `${id}-err` : undefined, className: "field w-full" };
   return (
@@ -244,8 +259,10 @@ function BlockCard({
 
 export type SavedSignature = { id: string; name: string; doc: SignatureDoc };
 
-export function Editor({ initial, explicit, aiNotice = false, saved, canSave = false, canUpload = false, gifEnabled = true, assetInfo }: {
+export function Editor({ initial, explicit, aiNotice = false, saved, canSave = false, canUpload = false, gifEnabled = true, assetInfo, polishId }: {
   initial: string; explicit: boolean; aiNotice?: boolean; saved?: SavedSignature; canSave?: boolean; canUpload?: boolean; gifEnabled?: boolean; assetInfo?: AssetMap;
+  /** A designer polishing someone's request (?polish=<id>): shows the Deliver banner. */
+  polishId?: string;
 }) {
   const [showAiNotice, setShowAiNotice] = useState(aiNotice);
   const [ready, setReady] = useState(false); // false until localStorage has been consulted (avoids a hydration flash)
@@ -459,8 +476,24 @@ export function Editor({ initial, explicit, aiNotice = false, saved, canSave = f
 
   async function onCopy() {
     if (!current) return;
-    setStatus((await copyHtmlRich(current.html)) ? "Copied as rich text. Paste it into your email client's signature box." : "The browser blocked clipboard access. Use Download .htm instead.");
+    const out = await exportHtml(current.parsed, current.html, savedId);
+    if (!out.ok) return setStatus(out.message);
+    setStatus((await copyHtmlRich(out.html)) ? "Copied as rich text. Paste it into your email client's signature box." : "The browser blocked clipboard access. Use Download .htm instead.");
   }
+
+  async function onDownload() {
+    if (!current) return;
+    const out = await exportHtml(current.parsed, current.html, savedId);
+    if (!out.ok) return setStatus(out.message);
+    downloadHtm(out.html, `${doc.template_id}-signature.htm`);
+  }
+
+  /** Adds a legal disclaimer from a template, or replaces the one the signature already has (a signature has one). */
+  const onInsertDisclaimer = (body: string) =>
+    update((s) => {
+      const blocks = insertDisclaimer(s.doc.blocks, { body });
+      return { doc: { ...s.doc, blocks }, ids: blocks.length > s.ids.length ? [...s.ids, newId()] : s.ids };
+    });
 
   if (!ready || !snapshot) {
     return <div className="card h-96 animate-pulse" aria-busy="true" aria-label="Loading editor" />;
@@ -474,6 +507,7 @@ export function Editor({ initial, explicit, aiNotice = false, saved, canSave = f
     <div className="grid gap-6 lg:grid-cols-[400px_1fr]">
       {/* ---------- controls ---------- */}
       <div className="space-y-5">
+        {polishId && <PolishDeliverBanner requestId={polishId} doc={valid && current ? current.parsed : null} />}
         {showAiNotice && (
           <div role="status" data-testid="ai-notice" className="card flex items-start justify-between gap-3 border-accent bg-accent-soft p-4 text-sm">
             <p>
@@ -581,8 +615,10 @@ export function Editor({ initial, explicit, aiNotice = false, saved, canSave = f
           </div>
         </section>
 
+        <DisclaimerPicker hasDisclaimer={doc.blocks.some((b) => b.type === "disclaimer")} onInsert={onInsertDisclaimer} />
+
         {issues ? (
-          <CompatPanel issues={issues} onFix={onFix} onFixAll={onFixAll} onSelect={onShowBlock} />
+          <CompatPanel issues={issues} onFix={onFix} onFixAll={onFixAll} onSelect={onShowBlock} doc={current?.parsed} />
         ) : (
           <p className="card p-5 text-sm text-muted">Fix the highlighted fields to run the compatibility check.</p>
         )}
@@ -622,7 +658,7 @@ export function Editor({ initial, explicit, aiNotice = false, saved, canSave = f
         </section>
         <div className="mt-4 flex flex-wrap gap-3">
           <button className="btn btn-primary" onClick={onCopy} disabled={!valid}>Copy as rich text</button>
-          <button className="btn" disabled={!valid} onClick={() => current && downloadHtm(current.html, `${doc.template_id}-signature.htm`)}>Download .htm</button>
+          <button className="btn" disabled={!valid} onClick={onDownload}>Download .htm</button>
         </div>
         <p role="status" aria-live="polite" className="mt-3 min-h-5 text-sm text-muted">{status}</p>
         <GmailPush doc={valid && current ? current.parsed : null} returnTo="/editor" />

@@ -2,6 +2,14 @@ import type { AssetInfo, AssetWarning, UploadPurpose } from "@/lib/storage/rules
 
 export type UploadResult = AssetInfo & { url: string; notes: string[]; warnings: AssetWarning[] };
 
+/** The extra facts the upload step measures (GIF frames and first-frame, dark artwork, ...). All optional, copied only when present. */
+const FACT_KEYS = ["frames", "durationMs", "minDelayMs", "loopCount", "firstFrame", "firstFrameCoverage", "peakCoverage", "flashesPerSecond", "hasTransparency", "darkArtwork"] as const;
+export function pickFacts(from: Partial<AssetInfo>): Partial<AssetInfo> {
+  const out: Record<string, unknown> = {};
+  for (const k of FACT_KEYS) if (from[k] !== undefined && from[k] !== null) out[k] = from[k];
+  return out as Partial<AssetInfo>;
+}
+
 /** Sends an image to /api/upload (which optimizes it and stores it on the CDN). Throws an Error with a user-readable message. */
 export async function uploadImage(file: File, purpose: UploadPurpose = "image"): Promise<UploadResult> {
   const form = new FormData();
@@ -23,13 +31,14 @@ export async function uploadImage(file: File, purpose: UploadPurpose = "image"):
     height: data.height ?? 0,
     animated: !!data.animated,
     originalBytes: data.originalBytes,
+    ...pickFacts(data),
     notes: data.notes ?? [],
     warnings: data.warnings ?? [],
   };
 }
 
 /** The part of an upload result the compatibility checker needs. */
-export const toAssetInfo = (r: UploadResult): AssetInfo => ({ type: r.type, bytes: r.bytes, width: r.width, height: r.height, animated: r.animated, originalBytes: r.originalBytes });
+export const toAssetInfo = (r: UploadResult): AssetInfo => ({ type: r.type, bytes: r.bytes, width: r.width, height: r.height, animated: r.animated, originalBytes: r.originalBytes, ...pickFacts(r) });
 
 /** The banner size range the document schema accepts (BannerBlock). A size outside it would make the whole document invalid. */
 const BANNER = { minW: 100, maxW: 600, minH: 20, maxH: 300 } as const;

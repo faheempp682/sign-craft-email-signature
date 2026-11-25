@@ -16,6 +16,10 @@ import { LayersIcon } from "@solar-icons/react/bold-duotone/layers";
 import { DocumentTextIcon } from "@solar-icons/react/bold-duotone/document-text";
 import { BookIcon } from "@solar-icons/react/bold-duotone/book";
 import { ShieldCheckIcon } from "@solar-icons/react/bold-duotone/shield-check";
+import { CardIcon } from "@solar-icons/react/bold-duotone/card";
+import { PaletteRoundIcon } from "@solar-icons/react/bold-duotone/palette-round";
+import { HamburgerMenuIcon } from "@solar-icons/react/bold-duotone/hamburger-menu";
+import { UsersGroupTwoRoundedIcon } from "@solar-icons/react/bold-duotone/users-group-two-rounded";
 import { signOut } from "@/app/login/actions";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -31,6 +35,13 @@ const ITEMS: Item[] = [
   { href: "/guides", label: "Guides", Icon: BookIcon },
 ];
 
+/**
+ * Links that depend on what the signed-in person may use (feature flags, role). The layout works out the list on the
+ * server; this file only draws it. `team` is added when the team screens exist.
+ */
+export type NavExtra = { href: string; label: string; icon: "cards" | "polish" | "team" };
+const EXTRA_ICON: Record<NavExtra["icon"], SolarIcon> = { cards: CardIcon, polish: PaletteRoundIcon, team: UsersGroupTwoRoundedIcon };
+
 export function Logo({ className }: { className?: string }) {
   return (
     <span className={cn("grid size-9 place-items-center rounded-xl bg-brand text-white", className)} aria-hidden="true">
@@ -40,8 +51,8 @@ export function Logo({ className }: { className?: string }) {
 }
 
 /** Slim icon rail, the primary navigation on desktop. */
-export function Rail({ email, isAdmin = false }: { email?: string | null; isAdmin?: boolean }) {
-  const items = isAdmin ? [...ITEMS, { href: "/admin", label: "Admin", Icon: ShieldCheckIcon }] : ITEMS;
+export function Rail({ email, isAdmin = false, extras = [] }: { email?: string | null; isAdmin?: boolean; extras?: NavExtra[] }) {
+  const items = [...ITEMS, ...extras.map((x) => ({ href: x.href, label: x.label, Icon: EXTRA_ICON[x.icon] })), ...(isAdmin ? [{ href: "/admin", label: "Admin", Icon: ShieldCheckIcon }] : [])];
   const path = usePathname();
   return (
     <TooltipProvider>
@@ -95,7 +106,7 @@ export function Rail({ email, isAdmin = false }: { email?: string | null; isAdmi
 }
 
 /** Contextual side panel, mirrors the reference's "New task / Inspirations / Project" column. */
-export function Panel({ isAdmin = false }: { isAdmin?: boolean }) {
+export function Panel({ isAdmin = false, extras = [] }: { isAdmin?: boolean; extras?: NavExtra[] }) {
   const path = usePathname();
   const row = (active: boolean) =>
     cn(
@@ -117,6 +128,14 @@ export function Panel({ isAdmin = false }: { isAdmin?: boolean }) {
       <Link href="/guides" className={row(path.startsWith("/guides"))}>
         <BookIcon size={18} /> Install guides
       </Link>
+      {extras.map((x) => {
+        const Icon = EXTRA_ICON[x.icon];
+        return (
+          <Link key={x.href} href={x.href} className={row(path.startsWith(x.href))}>
+            <Icon size={18} /> {x.label}
+          </Link>
+        );
+      })}
       {isAdmin && (
         <Link href="/admin" className={row(path.startsWith("/admin"))}>
           <ShieldCheckIcon size={18} /> Admin
@@ -134,17 +153,28 @@ export function Panel({ isAdmin = false }: { isAdmin?: boolean }) {
   );
 }
 
-export function Topbar({ email, isAdmin = false }: { email?: string | null; isAdmin?: boolean }) {
+export function Topbar({ email, isAdmin = false, extras = [] }: { email?: string | null; isAdmin?: boolean; extras?: NavExtra[] }) {
+  const more = [...extras.map((x) => ({ href: x.href, label: x.label, Icon: EXTRA_ICON[x.icon] })), ...(isAdmin ? [{ href: "/admin", label: "Admin", Icon: ShieldCheckIcon }] : [])];
   return (
     <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-border bg-background/85 px-4 backdrop-blur md:px-6">
       <span className="inline-flex h-9 max-w-[50%] items-center rounded-lg border border-border bg-card px-3 text-sm">
         <span className="truncate" title={email ?? undefined}>{email ?? "Personal team"}</span>
       </span>
       <div className="flex items-center gap-2">
-        {isAdmin && (
-          <Link href="/admin" className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm transition-colors hover:bg-secondary md:hidden">
-            <ShieldCheckIcon size={18} /> Admin
-          </Link>
+        {more.length > 0 && (
+          // The bottom bar is capped at five items, so on phones the rest live in this menu.
+          <details className="relative md:hidden">
+            <summary className="inline-flex h-11 min-w-11 cursor-pointer list-none items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm [&::-webkit-details-marker]:hidden">
+              <HamburgerMenuIcon size={18} /> More
+            </summary>
+            <div className="absolute right-0 z-30 mt-2 w-52 rounded-xl border border-border bg-card p-1 shadow-lg">
+              {more.map(({ href, label, Icon }) => (
+                <Link key={href} href={href} className="flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm transition-colors hover:bg-secondary">
+                  <Icon size={18} /> {label}
+                </Link>
+              ))}
+            </div>
+          </details>
         )}
         <Link href="/signatures" className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm transition-colors hover:bg-secondary">
           <QuestionCircleIcon size={18} /> Help

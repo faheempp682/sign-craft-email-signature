@@ -9,6 +9,8 @@ const state = vi.hoisted(() => ({
   count: 0,
   /** Result of the animated_gif feature check: true / false, or "error" when the check itself fails. */
   animatedGif: true as boolean | "error",
+  /** Simulates a database that has not had migration 0013 (no `facts` column). */
+  noFactsColumn: false,
 }));
 
 vi.mock("@/lib/supabase/server", () => {
@@ -20,6 +22,7 @@ vi.mock("@/lib/supabase/server", () => {
     from: () => ({
       select: async () => ({ count: state.count }),
       insert: async (row: Record<string, unknown>) => {
+        if (state.noFactsColumn && "facts" in row) return { error: { message: 'column "facts" of relation "assets" does not exist' } };
         state.inserted.push(row);
         return { error: null };
       },
@@ -46,6 +49,7 @@ beforeEach(() => {
   state.inserted = [];
   state.count = 0;
   state.animatedGif = true;
+  state.noFactsColumn = false;
   bunny = vi.fn(async () => new Response(null, { status: 201 }));
   vi.stubGlobal("fetch", bunny);
 });
@@ -127,6 +131,28 @@ describe("POST /api/upload", () => {
       const res = await upload(await animatedGif(200, 100, 4), "a.gif", "image/gif");
       expect(res.status).toBe(503);
       expect(bunny).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("measured facts are kept with the asset", () => {
+    it("stores the GIF facts so later visits to the editor can still use them", async () => {
+      await upload(await animatedGif(200, 100, 4), "a.gif", "image/gif");
+      expect(state.inserted[0].facts).toMatchObject({ frames: 4 });
+    });
+
+    it("stores no facts for an ordinary still image beyond what was measured, and never extra fields", async () => {
+      await upload(await png(50, 50));
+      const facts = state.inserted[0].facts as Record<string, unknown>;
+      expect(Object.keys(facts).every((k) => ["frames", "durationMs", "minDelayMs", "loopCount", "firstFrame", "firstFrameCoverage", "peakCoverage", "flashesPerSecond", "hasTransparency", "darkArtwork"].includes(k))).toBe(true);
+    });
+
+    it("still records the asset (and so still counts it toward the quota) when the facts column does not exist yet", async () => {
+      state.noFactsColumn = true;
+      const res = await upload(await png(50, 50));
+      expect(res.status).toBe(200);
+      expect(state.inserted).toHaveLength(1);
+      expect("facts" in state.inserted[0]).toBe(false);
+      expect(state.inserted[0]).toMatchObject({ type: "image/png" });
     });
   });
 

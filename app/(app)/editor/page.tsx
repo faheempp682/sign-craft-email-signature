@@ -2,9 +2,11 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 import { getPreset } from "@/lib/presets";
 import { SignatureDocSchema } from "@/lib/schema/document";
+import { featureEnabled } from "@/lib/authz/guard";
 import { createClient, getUser } from "@/lib/supabase/server";
 import { getBunnyConfig } from "@/lib/storage/bunny";
 import type { AssetMap } from "@/lib/linter";
+import { pickFacts } from "@/lib/editor/upload";
 import { Editor, type SavedSignature } from "./editor";
 
 export const metadata = { title: "Editor · SignCraft" };
@@ -27,18 +29,25 @@ async function loadAssetInfo(saved: SavedSignature | null): Promise<AssetMap> {
   if (urls.length === 0) return {};
   const supabase = await createClient();
   if (!supabase) return {};
-  const { data } = await supabase.from("assets").select("url, type, size, width, height, animated, original_size").in("url", urls);
+  // `facts` exists once migration 0013 is applied; without it, fall back to the columns every database has.
+  const base = "url, type, size, width, height, animated, original_size";
+  let res: { data: unknown[] | null; error: unknown } = await supabase.from("assets").select(`${base}, facts`).in("url", urls);
+  if (res.error) res = await supabase.from("assets").select(base).in("url", urls);
   const map: AssetMap = {};
-  for (const r of data ?? []) {
+  for (const r of (res.data ?? []) as unknown as { url: string; type: string; size: number; width: number | null; height: number | null; animated: boolean | null; original_size: number | null; facts?: Record<string, unknown> | null }[]) {
     if (r.type !== "image/png" && r.type !== "image/jpeg" && r.type !== "image/gif") continue;
-    map[r.url] = { type: r.type, bytes: r.size, width: r.width ?? 0, height: r.height ?? 0, animated: !!r.animated, originalBytes: r.original_size ?? undefined };
+    map[r.url] = { type: r.type, bytes: r.size, width: r.width ?? 0, height: r.height ?? 0, animated: !!r.animated, originalBytes: r.original_size ?? undefined, ...(r.facts && typeof r.facts === "object" ? pickFacts(r.facts) : {}) };
   }
   return map;
 }
 
-export default async function EditorPage({ searchParams }: { searchParams: Promise<{ t?: string; from?: string; s?: string }> }) {
-  const { t, from, s } = await searchParams;
+export default async function EditorPage({ searchParams }: { searchParams: Promise<{ t?: string; from?: string; s?: string; polish?: string }> }) {
+  const { t, from, s, polish } = await searchParams;
   const user = await getUser();
+  const polishId = polish && z.string().uuid().safeParse(polish).success ? polish : undefined;
+  // Animated GIFs are enabled per account; when the check cannot be made, say "off" rather than offering a tool that will fail.
+  const supabase = user ? await createClient() : null;
+  const gifEnabled = supabase ? (await featureEnabled(supabase, "animated_gif")) === true : true;
   const saved = s ? await loadSaved(s) : null;
   if (s && !saved) notFound();
 
@@ -61,6 +70,8 @@ export default async function EditorPage({ searchParams }: { searchParams: Promi
         canSave={!!user}
         canUpload={!!user && !!getBunnyConfig()}
         assetInfo={await loadAssetInfo(saved)}
+        gifEnabled={gifEnabled}
+        polishId={polishId}
       />
     </>
   );

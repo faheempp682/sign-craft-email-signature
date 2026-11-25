@@ -3,6 +3,7 @@ import { deny, featureEnabled, requireUser } from "@/lib/authz/guard";
 import { LIMITS, UPLOAD_PURPOSES, type UploadPurpose } from "@/lib/storage/rules";
 import { UploadError, processUpload } from "@/lib/storage/process";
 import { getBunnyConfig, uploadToBunny } from "@/lib/storage/bunny";
+import { pickFacts } from "@/lib/editor/upload";
 
 export const runtime = "nodejs";
 
@@ -66,7 +67,7 @@ export async function POST(req: Request) {
     return json({ error: "upstream", message: "The image host rejected the upload. Check the Bunny zone name, access key and region." }, 502);
   }
 
-  const { error } = await supabase.from("assets").insert({
+  const row = {
     url,
     path,
     type: info.type,
@@ -75,7 +76,12 @@ export async function POST(req: Request) {
     height: info.height,
     animated: info.animated,
     original_size: info.originalBytes ?? null,
-  });
+  };
+  // The measured facts (GIF frames, first frame, dark artwork...) are kept so the checker can use them on later visits.
+  // If the database does not have the `facts` column yet (migration 0013 not applied), record the row without them:
+  // the row also counts toward the image quota, so it must never be lost over this.
+  let { error } = await supabase.from("assets").insert({ ...row, facts: pickFacts(info) });
+  if (error && /facts/i.test(error.message)) ({ error } = await supabase.from("assets").insert(row));
   if (error) console.error("[upload] asset row failed:", error.message); // the image is live either way; the row is bookkeeping
 
   return json({ url, ...info, notes, warnings });

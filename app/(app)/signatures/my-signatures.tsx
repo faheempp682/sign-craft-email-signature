@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { renderToEmailHtml } from "@/lib/renderer/email-html";
 import type { SignatureDoc } from "@/lib/schema/document";
+import { RequestPolish } from "@/components/request-polish";
 
 export type MySignature = { id: string; name: string; updatedAt: string; doc: SignatureDoc };
 
@@ -71,8 +72,9 @@ export function MySignatures({ items }: { items: MySignature[] }) {
                   <h3 className="truncate font-semibold">{s.name}</h3>
                   <p className="mt-1 text-sm text-muted">Updated <UpdatedDate iso={s.updatedAt} /></p>
                 </div>
-                <div className="flex shrink-0 gap-2">
+                <div className="flex shrink-0 flex-wrap gap-2">
                   <Link href={`/editor?s=${s.id}`} className="btn btn-primary">Edit</Link>
+                  <RequestPolish signatureId={s.id} origin="manual" />
                   <button className="btn" disabled={busy === s.id} onClick={() => remove(s)} aria-label={`Delete ${s.name}`}>
                     {busy === s.id ? "Deleting…" : "Delete"}
                   </button>
