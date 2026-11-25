@@ -22,6 +22,9 @@ const EXAMPLES = [
 ];
 
 const MAX = 1000;
+const MAX_SHOT_BYTES = 5 * 1024 * 1024;
+const SHOT_TYPES = ["image/png", "image/jpeg", "image/gif"];
+const MAX_NOTE = 500;
 
 function Mascot() {
   return (
@@ -53,7 +56,10 @@ export function CreateForm() {
   const router = useRouter();
   const [prompt, setPrompt] = useState("");
   const [styles, setStyles] = useState<string[]>([]);
-  const [busy, setBusy] = useState(false);
+  const [doing, setDoing] = useState<"design" | "screenshot" | null>(null);
+  const busy = doing !== null;
+  const [dragging, setDragging] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
   const [hasDraft, setHasDraft] = useState(false);
   const box = useRef<HTMLTextAreaElement>(null);
@@ -67,16 +73,12 @@ export function CreateForm() {
   const toggle = (s: string) => setStyles((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : cur.length >= 4 ? cur : [...cur, s]));
   const canSend = prompt.trim().length >= 3 && !busy;
 
-  async function submit() {
-    if (!canSend) return;
-    setBusy(true);
+  /** Runs one request that returns a signature, then hands the result to the editor. Shared by the prompt and the screenshot. */
+  async function generate(kind: "design" | "screenshot", send: () => Promise<Response>) {
+    setDoing(kind);
     setError("");
     try {
-      const res = await fetch("/api/ai/design", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: prompt.trim(), styles }),
-      });
+      const res = await send();
       const data = (await res.json().catch(() => null)) as { doc?: SignatureDoc; message?: string } | null;
       if (!res.ok || !data?.doc) {
         setError(data?.message ?? "Something went wrong. Please try again.");
@@ -92,8 +94,29 @@ export function CreateForm() {
     } catch {
       setError("Could not reach the server. Check your connection and try again.");
     } finally {
-      setBusy(false);
+      setDoing(null);
     }
+  }
+
+  function submit() {
+    if (!canSend) return;
+    void generate("design", () =>
+      fetch("/api/ai/design", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: prompt.trim(), styles }) }),
+    );
+  }
+
+  /** Rebuild a signature from a picture. Anything typed in the box is sent along as a note ("make it navy"). */
+  function readScreenshot(file: File | undefined) {
+    if (!file || busy) return;
+    if (!SHOT_TYPES.includes(file.type)) return setError("Upload a PNG, JPG or GIF screenshot.");
+    if (file.size > MAX_SHOT_BYTES) return setError("That screenshot is over 5 MB. Crop it to just the signature and try again.");
+    const note = prompt.trim().slice(0, MAX_NOTE);
+    void generate("screenshot", () => {
+      const form = new FormData();
+      form.set("file", file);
+      if (note) form.set("note", note);
+      return fetch("/api/ai/vision", { method: "POST", body: form });
+    });
   }
 
   return (
@@ -119,7 +142,20 @@ export function CreateForm() {
           <Mascot />
         </div>
 
-        <div className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
+        <div
+          className={cn("rounded-2xl border bg-card p-4 shadow-sm transition-colors sm:p-5", dragging ? "border-brand ring-2 ring-brand/30" : "border-border")}
+          onDragOver={(e) => {
+            if (busy || !e.dataTransfer.types.includes("Files")) return;
+            e.preventDefault();
+            setDragging(true);
+          }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragging(false);
+            readScreenshot(e.dataTransfer.files[0]);
+          }}
+        >
           <label htmlFor="idea" className="sr-only">Describe your signature</label>
           <textarea
             id="idea"
@@ -138,6 +174,12 @@ export function CreateForm() {
             placeholder="Describe the signature you want, or pick a style below…"
             className="w-full resize-none bg-transparent text-[0.95rem] leading-relaxed outline-none placeholder:text-muted-foreground"
             aria-describedby="idea-help"
+            onPaste={(e) => {
+              const pasted = [...e.clipboardData.files].find((f) => f.type.startsWith("image/"));
+              if (!pasted) return; // ordinary text paste
+              e.preventDefault();
+              readScreenshot(pasted);
+            }}
           />
 
           <div role="group" aria-label="Style hints" className="mt-2 flex flex-wrap gap-2">
@@ -179,7 +221,22 @@ export function CreateForm() {
               >
                 <AddCircleIcon size={20} />
               </Button>
-              <p id="idea-help" className="text-xs text-muted-foreground">
+              <input
+                ref={fileInput}
+                type="file"
+                accept="image/png,image/jpeg,image/gif"
+                className="sr-only"
+                tabIndex={-1}
+                aria-label="Upload a screenshot of a signature"
+                onChange={(e) => {
+                  readScreenshot(e.target.files?.[0]);
+                  e.target.value = ""; // so choosing the same file again still fires
+                }}
+              />
+              <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => fileInput.current?.click()} title="Rebuild a signature from a screenshot. You can also drop or paste one here.">
+                <GalleryIcon size={16} /> From a screenshot
+              </Button>
+              <p id="idea-help" className="hidden text-xs text-muted-foreground sm:block">
                 {prompt.length}/{MAX} &middot; Ctrl+Enter
               </p>
             </div>
@@ -199,7 +256,11 @@ export function CreateForm() {
         </div>
 
         <div className="mt-3 min-h-6 text-center text-sm" aria-live="polite">
-          {busy && <p role="status" className="text-muted-foreground">Designing your signature… this usually takes a few seconds.</p>}
+          {busy && (
+            <p role="status" className="text-muted-foreground">
+              {doing === "screenshot" ? "Reading your screenshot… this can take 10 to 20 seconds." : "Designing your signature… this usually takes a few seconds."}
+            </p>
+          )}
           {error && (
             <p role="alert" className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-left text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
               {error}
