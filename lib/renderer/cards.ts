@@ -117,7 +117,7 @@ export function badgeRows(it: Item[], o: { fs: number; lh: number; gap: number; 
 }
 
 /** Small label above a value, optionally in two columns. */
-export function stackCols(it: Item[], o: { cols: 1 | 2; lfs: number; lc: string; vfs: number; vlh: number; gap: number; upper?: boolean; colGap?: number }) {
+export function stackCols(it: Item[], o: { cols: 1 | 2; lfs: number; lc: string; vfs: number; vlh: number; gap: number; upper?: boolean; colGap?: number; leftW?: number }) {
   if (!it.length) return "";
   const one = (x: Item) =>
     `<div style="font-size:${o.lfs}px;line-height:${o.lfs + 4}px;font-weight:bold;color:${o.lc};${o.upper ? "text-transform:uppercase;letter-spacing:1px;" : ""}">${WORD[x.k]}</div><div style="font-size:${o.vfs}px;line-height:${o.vlh}px;">${x.html}</div>`;
@@ -125,7 +125,9 @@ export function stackCols(it: Item[], o: { cols: 1 | 2; lfs: number; lc: string;
   if (o.cols === 1) return col(it);
   const left = it.filter((_, i) => i % 2 === 0);
   const right = it.filter((_, i) => i % 2 === 1);
-  return tbl(`<tr><td valign="top">${col(left)}</td>${sp(o.colGap ?? 24)}<td valign="top">${col(right)}</td></tr>`);
+  // leftW pins the first column to its content width, so a long value in the second column cannot squeeze it into mid-word breaks.
+  const leftAttr = o.leftW ? ` width="${o.leftW}" style="width:${o.leftW}px;"` : "";
+  return tbl(`<tr><td valign="top"${leftAttr}>${col(left)}</td>${sp(o.colGap ?? 24)}<td valign="top">${col(right)}</td></tr>`);
 }
 
 const GLYPH: Record<string, string> = { linkedin: "in", twitter: "X", facebook: "f", instagram: "ig", youtube: "yt", github: "gh", tiktok: "tk" };
@@ -196,7 +198,7 @@ const editorialArch: Skin = {
     const right = [co?.html, di ? vsp(14) + di.html : ""].filter(Boolean).join(vsp(14));
     const main = `<table ${TABLE_ATTRS}><tr><td colspan="5" style="padding-bottom:14px;">${company}</td></tr><tr>${td(av?.html, 'valign="bottom"')}${sp(14)}${td(id?.html, 'valign="middle"')}${sp(22)}<td valign="middle" style="border-left:1px solid ${mix(t.bg, t.text, 0.35)};padding-left:22px;width:230px;">${right}</td></tr></table>`;
     const strip = so ? `<td valign="middle" align="center" width="44" bgcolor="${t.primary}" style="width:44px;background-color:${t.primary};border-radius:0 12px 12px 0;">${so.html}</td>` : "";
-    return `<table ${TABLE_ATTRS} width="620" bgcolor="${t.bg}" style="width:620px;background-color:${t.bg};border-radius:12px;font-family:${fonts(t)};color:${t.text};"><tr><td style="padding:24px 28px;">${main}</td>${strip}</tr></table>`;
+    return `<table ${TABLE_ATTRS} width="710" bgcolor="${t.bg}" style="width:710px;background-color:${t.bg};border-radius:12px;font-family:${fonts(t)};color:${t.text};"><tr><td style="padding:24px 28px;">${main}</td>${strip}</tr></table>`;
   },
 };
 
@@ -232,7 +234,7 @@ const circleAccent: Skin = {
       const [f, r] = splitName(b.name);
       return `<div style="font-size:11px;line-height:16px;color:${t.text};">Hello, my name is</div><div style="font-size:30px;line-height:34px;color:${t.text};">${esc(f)}</div>${r ? `<div style="font-size:30px;line-height:34px;font-weight:bold;color:${t.text};">${esc(r)}</div>` : ""}${b.title ? `<div style="padding-top:6px;font-size:11px;line-height:16px;color:${t.text};">I&#39;m a ${esc(b.title.toLowerCase())}</div>` : ""}`;
     }
-    if (b.type === "contact") return stackCols(items(b, t.text), { cols: 2, lfs: 9, lc: t.text, vfs: 9, vlh: 13, gap: 14, colGap: 26 });
+    if (b.type === "contact") return stackCols(items(b, t.text), { cols: 2, lfs: 9, lc: t.text, vfs: 9, vlh: 13, gap: 14, colGap: 26, leftW: 110 });
   },
   layout(s, t) {
     const av = s.get("avatar");
@@ -242,7 +244,7 @@ const circleAccent: Skin = {
     const brand = id?.b.company ? `<div style="font-size:10px;font-weight:bold;color:${t.text};padding-bottom:30px;"><span style="color:${t.primary};">&#9679;</span> ${esc(id.b.company)}</div>` : vsp(30);
     const dot = `<td valign="bottom" width="50" style="width:50px;"><table ${TABLE_ATTRS}><tr><td width="50" height="50" bgcolor="${t.accent2}" style="width:50px;height:50px;background-color:${t.accent2};border-radius:25px;font-size:1px;line-height:1px;">&nbsp;</td></tr></table></td>`;
     const rightCol = `${co?.html ?? ""}${so ? vsp(12) + so.html : ""}`;
-    return `<table ${TABLE_ATTRS} width="640" bgcolor="${t.bg}" style="width:640px;background-color:${t.bg};border-radius:6px;font-family:${fonts(t)};color:${t.text};"><tr><td style="padding:26px 30px;"><table ${TABLE_ATTRS}><tr><td valign="top" width="150" style="width:150px;">${brand}${id?.html ?? ""}</td>${dot}${td(av?.html, 'valign="middle"')}${sp(26)}<td valign="middle">${rightCol}</td></tr></table></td></tr></table>`;
+    return `<table ${TABLE_ATTRS} width="690" bgcolor="${t.bg}" style="width:690px;background-color:${t.bg};border-radius:6px;font-family:${fonts(t)};color:${t.text};"><tr><td style="padding:26px 30px;"><table ${TABLE_ATTRS}><tr><td valign="top" width="150" style="width:150px;">${brand}${id?.html ?? ""}</td>${dot}${td(av?.html, 'valign="middle"')}${sp(26)}<td valign="middle">${rightCol}</td></tr></table></td></tr></table>`;
   },
 };
 
@@ -423,7 +425,7 @@ const ticket: Skin = {
     const id = s.get("identity");
     const co = s.get("contact");
     const so = s.get("social");
-    const stripe = `<table ${TABLE_ATTRS} align="right"><tr><td width="64" height="10" bgcolor="${t.primary}" style="width:64px;height:10px;background-color:${t.primary};font-size:1px;line-height:1px;">&nbsp;</td></tr></table>`;
+    const stripe = `<table ${TABLE_ATTRS} width="100%"><tr><td align="right"><table ${TABLE_ATTRS}><tr><td width="64" height="10" bgcolor="${t.primary}" style="width:64px;height:10px;background-color:${t.primary};font-size:1px;line-height:1px;">&nbsp;</td></tr></table></td></tr></table>`;
     const number = co ? `<div style="padding-top:6px;text-align:right;font-family:'Courier New',monospace;font-size:13px;letter-spacing:1px;color:${t.text};">${esc(((s.doc.blocks.find((x) => x.type === "contact") as B<"contact">).phone ?? "").replace(/[^\d]/g, "") || "000000114351")}</div>` : "";
     const head = `<table ${TABLE_ATTRS} width="100%"><tr>${td(av?.html, 'valign="top" width="84" style="width:84px;"')}<td valign="top" style="padding-left:14px;">${id?.html ?? ""}</td><td valign="bottom" align="right" width="150" style="width:150px;">${stripe}${number}</td></tr></table>`;
     const band = co ? `<tr><td bgcolor="${t.primary}" style="background-color:${t.primary};padding:10px 22px;">${co.html}</td></tr>` : "";
