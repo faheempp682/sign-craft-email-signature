@@ -4,32 +4,67 @@ import { FIELDS } from "./blocks";
 
 /**
  * Click-to-edit support WITHOUT touching the exporter: the preview DOM is matched against what the unchanged
- * `renderBlock` produces for each block. Block output always sits alone inside a <td>, so we compare that
- * cell's innerHTML with the block's HTML (both normalised by the same browser parser).
- * Returns element -> block id. Identical blocks are paired in document order.
+ * `renderBlockForDoc` produces for each block (both normalised by the same browser parser).
+ *
+ * A block's HTML is either the whole content of a <td> (that cell is mapped) or, when a layout stacks several blocks in
+ * one cell, a contiguous run of that cell's children (each element of the run is mapped). Identical blocks are paired
+ * in document order. Returns element -> block id.
  */
 export function mapBlockElements(root: ParentNode, doc: SignatureDoc, ids: string[]): Map<Element, string> {
+  const owner = (root as Node).ownerDocument ?? document;
   const normalise = (html: string) => {
-    const t = document.createElement("template");
+    const t = owner.createElement("template");
     t.innerHTML = html;
     return t.innerHTML;
   };
-  const cellsByHtml = new Map<string, Element[]>();
-  for (const td of Array.from(root.querySelectorAll("td"))) {
-    const list = cellsByHtml.get(td.innerHTML) ?? [];
-    list.push(td);
-    cellsByHtml.set(td.innerHTML, list);
-  }
+  const ser = (n: Node): string => {
+    if (n.nodeType === 1) return (n as Element).outerHTML;
+    if (n.nodeType === 3) {
+      const d = owner.createElement("div");
+      d.appendChild(n.cloneNode());
+      return d.innerHTML;
+    }
+    return "";
+  };
+  const all = Array.from(root.querySelectorAll("*"));
   const used = new Map<string, number>();
   const out = new Map<Element, string>();
   doc.blocks.forEach((block, i) => {
     const html = renderBlockForDoc(block, doc);
-    if (!html) return; // empty blocks (e.g. a contact block with no fields) render nothing
+    if (!html || !ids[i]) return; // empty blocks (e.g. a contact block with no fields) render nothing
     const key = normalise(html);
-    const n = used.get(key) ?? 0;
-    used.set(key, n + 1);
-    const el = cellsByHtml.get(key)?.[n];
-    if (el && ids[i]) out.set(el, ids[i]);
+    const want = used.get(key) ?? 0;
+    used.set(key, want + 1);
+
+    // Minimal containers: elements whose content includes the block, with no child element that already does.
+    let seen = 0;
+    for (const el of all) {
+      const inner = el.innerHTML;
+      if (!inner.includes(key)) continue;
+      if (Array.from(el.children).some((c) => c.innerHTML.includes(key))) continue;
+      // Offsets of each child node inside el.innerHTML.
+      const nodes = Array.from(el.childNodes);
+      const starts: number[] = [];
+      let acc = 0;
+      for (const n of nodes) {
+        starts.push(acc);
+        acc += ser(n).length;
+      }
+      for (let at = inner.indexOf(key); at >= 0; at = inner.indexOf(key, at + key.length)) {
+        if (seen++ !== want) continue;
+        if (inner.length === key.length) {
+          out.set(el, ids[i]); // the block is the entire cell
+          return;
+        }
+        const first = starts.indexOf(at);
+        if (first < 0) return; // run does not start on a node boundary
+        for (let k = first; k < nodes.length && starts[k] < at + key.length; k++) {
+          const n = nodes[k];
+          if (n.nodeType === 1) out.set(n as Element, ids[i]);
+        }
+        return;
+      }
+    }
   });
   return out;
 }

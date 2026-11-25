@@ -1,6 +1,6 @@
 import type { Block, Theme } from "@/lib/schema/document";
 import { NETWORK_LABEL, TABLE_ATTRS, esc } from "./shared";
-import { badgeRows, fonts, items, letterRows, mix, sp, splitName, stackCols, tbl, td, vsp, WORD, type B, type Skin, type Slots } from "./cards";
+import { badge, fonts, items, letterRows, mix, sp, splitName, stackCols, tbl, td, vsp, WORD, type B, type Skin, type Slots } from "./cards";
 
 /**
  * "Studio" composer: one engine that assembles a signature from independent structural choices.
@@ -47,6 +47,16 @@ function palette(t: Theme, inverse: boolean): K {
   const onP = onColor(t.primary);
   if (!inverse) return { ink: t.text, muted: t.muted, primary: t.primary, accent: t.accent2, chipBg: t.primary, chipFg: onP, line: mix(t.bg, t.text, 0.22) };
   return { ink: onP, muted: mix(t.primary, onP, 0.78), primary: onP, accent: t.accent2, chipBg: onP, chipFg: t.primary, line: mix(t.primary, onP, 0.4) };
+}
+
+const ICON = { phone: "T", email: "@", website: "W", address: "A" } as const;
+/** Badge + value rows. The gap is padding (not a width) so it can never collapse when a long value squeezes the row. */
+function badgeRows(it: ReturnType<typeof items>, o: { fs: number; lh: number; gap: number; size: number; bg: string; fg: string; tc: string; round?: boolean }) {
+  if (!it.length) return "";
+  return tbl(it.map((x, i) => {
+    const pad = i ? `padding-top:${o.gap}px;` : "";
+    return `<tr><td valign="middle" width="${o.size}" style="width:${o.size}px;${pad}padding-right:8px;">${badge(ICON[x.k], { size: o.size, bg: o.bg, fg: o.fg, round: o.round, r: 3, fs: 8 })}</td><td valign="middle" style="${pad}font-size:${o.fs}px;line-height:${o.lh}px;color:${o.tc};">${x.html}</td></tr>`;
+  }).join(""));
 }
 
 const alignAttr = (al: string) => (al === "center" ? 'align="center"' : "");
@@ -100,7 +110,7 @@ function titleHtml(style: number, b: B<"identity">, k: K, al: string): string {
 
 /* ---------- contact styles ---------- */
 
-function contactHtml(style: number, b: B<"contact">, k: K): string {
+function contactHtml(style: number, b: B<"contact">, k: K, per = 2): string {
   const it = items(b, k.ink, k.primary);
   if (!it.length) return "";
   const letters = { phone: "P", email: "E", website: "W", address: "A" } as const;
@@ -110,7 +120,8 @@ function contactHtml(style: number, b: B<"contact">, k: K): string {
     case 2:
       return letterRows(it, { fs: 12, lh: 17, gap: 5, lw: 20, lc: k.primary, tc: k.ink, label: letters });
     case 3:
-      return `<div style="font-size:12px;line-height:20px;color:${k.ink};">${it.map((x) => x.html).join(`<span style="color:${k.muted};"> &nbsp;|&nbsp; </span>`)}</div>`;
+      // Items are grouped per line (two, or one in narrow layouts) so a separator can never be stranded at a wrap point.
+      return `<div style="font-size:12px;line-height:20px;color:${k.ink};">${Array.from({ length: Math.ceil(it.length / per) }, (_, n) => it.slice(n * per, n * per + per).map((x) => x.html).join(`<span style="color:${k.muted};">&nbsp;&nbsp;|&nbsp;&nbsp;</span>`)).join("<br />")}</div>`;
     case 4:
       return stackCols(it, { cols: 2, lfs: 9, lc: k.primary, vfs: 11, vlh: 15, gap: 10, colGap: 22 });
     case 5:
@@ -141,13 +152,13 @@ function socialHtml(style: number, b: B<"social">, k: K): string {
     case 2:
       return row(b.links.map((l) => `<td align="center" width="22" height="22" style="width:22px;height:22px;border:1px solid ${k.primary};border-radius:11px;">${a(l, `display:block;color:${k.primary};font-size:9px;font-weight:bold;line-height:22px;text-align:center;`, GL[l.network])}</td>`));
     case 3:
-      return `<div style="font-size:12px;line-height:18px;font-weight:bold;">${b.links.map((l) => a(l, `color:${k.primary};`, label(l))).join(`<span style="color:${k.muted};"> &nbsp;|&nbsp; </span>`)}</div>`;
+      return `<div style="font-size:12px;line-height:18px;font-weight:bold;white-space:nowrap;">${b.links.map((l) => a(l, `color:${k.primary};`, label(l))).join(`<span style="color:${k.muted};"> &nbsp;|&nbsp; </span>`)}</div>`;
     case 4:
-      return `<div style="font-size:10px;line-height:16px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;">${b.links.map((l) => a(l, `color:${k.primary};`, label(l))).join(" &nbsp; ")}</div>`;
+      return `<div style="font-size:10px;line-height:16px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;">${b.links.map((l) => `<span style="white-space:nowrap;">${a(l, `color:${k.primary};`, label(l))}</span>`).join(" ")}</div>`;
     case 5:
-      return row(b.links.map((l) => `<td bgcolor="${k.chipBg}" style="background-color:${k.chipBg};border-radius:12px;padding:3px 11px;">${a(l, `color:${k.chipFg};font-size:11px;font-weight:bold;line-height:16px;`, label(l))}</td>`), 5);
+      return row(b.links.map((l) => `<td bgcolor="${k.chipBg}" style="background-color:${k.chipBg};border-radius:12px;padding:3px 11px;white-space:nowrap;">${a(l, `color:${k.chipFg};font-size:11px;font-weight:bold;line-height:16px;`, label(l))}</td>`), 5);
     case 6:
-      return `<div style="font-size:13px;line-height:18px;font-weight:bold;letter-spacing:1px;">${b.links.map((l) => a(l, `color:${k.primary};`, GL[l.network])).join(` <span style="color:${k.muted};">&middot;</span> `)}</div>`;
+      return `<div style="font-size:13px;line-height:18px;font-weight:bold;letter-spacing:1px;white-space:nowrap;">${b.links.map((l) => a(l, `color:${k.primary};`, GL[l.network])).join(` <span style="color:${k.muted};">&middot;</span> `)}</div>`;
     default:
       return row(b.links.map((l) => `<td align="center" width="22" height="22" bgcolor="${k.chipBg}" style="width:22px;height:22px;background-color:${k.chipBg};border-radius:11px;">${a(l, `display:block;color:${k.chipFg};font-size:9px;font-weight:bold;line-height:22px;text-align:center;`, GL[l.network])}</td>`));
   }
@@ -207,7 +218,7 @@ function frame(style: number, inner: string, w: number, t: Theme, bleed: boolean
     case 1:
       return `${open(`border:1px solid ${line};${bleed ? "" : "border-radius:10px;"}`)}<tr><td style="padding:${pad}px;">${inner}</td></tr></table>`;
     case 2:
-      return `${open("")}<tr><td height="4" bgcolor="${t.primary}" style="height:4px;line-height:4px;font-size:1px;background-color:${t.primary};">&nbsp;</td></tr><tr><td style="padding:${bleed ? 0 : 16}px ${bleed ? 0 : 18}px 0;">${inner}</td></tr></table>`;
+      return `${open("")}<tr><td height="4" bgcolor="${t.primary}" style="height:4px;line-height:4px;font-size:1px;background-color:${t.primary};">&nbsp;</td></tr><tr><td style="padding:${bleed ? 0 : 16}px ${bleed ? 0 : 18}px ${bleed ? 0 : 18}px;">${inner}</td></tr></table>`;
     case 3:
       return `${open("")}<tr><td width="5" bgcolor="${t.primary}" style="width:5px;background-color:${t.primary};font-size:1px;">&nbsp;</td><td style="padding:${pad}px;">${inner}</td></tr></table>`;
     case 4:
@@ -246,8 +257,8 @@ export function composeSkin(variant: string): Skin {
         const k = palette(t, invId);
         return nameHtml(sp_.name, b, k, al) + titleHtml(sp_.title, b, k, al);
       }
-      if (b.type === "contact") return contactHtml(sp_.contact, b, palette(t, invCo));
-      if (b.type === "social") return socialHtml(sp_.social, b, palette(t, invSo));
+      if (b.type === "contact") return contactHtml((L === 4 || L === 2) && sp_.contact === 4 ? 5 : sp_.contact, b, palette(t, invCo), L === 2 || L === 4 || L === 9 ? 1 : 2);
+      if (b.type === "social") return socialHtml(L === 8 ? ({ 3: 1, 4: 2, 5: 0 } as Record<number, number>)[sp_.social] ?? sp_.social : sp_.social, b, palette(t, invSo));
     },
     layout(s: Slots, t: Theme) {
       const av = s.get("avatar");
@@ -275,13 +286,13 @@ export function composeSkin(variant: string): Skin {
           inner = `<table ${TABLE_ATTRS} width="100%"><tr><td align="center">${av ? `<table ${TABLE_ATTRS} align="center"><tr><td>${av.html}</td></tr></table>${vsp(12)}` : ""}${ident}${(co || so) ? deco : ""}${co ? `<table ${TABLE_ATTRS} align="center"><tr><td>${co.html}</td></tr></table>` : ""}${so ? vsp(10) + `<table ${TABLE_ATTRS} align="center"><tr><td>${so.html}</td></tr></table>` : ""}</td></tr></table>`;
           break;
         case 3:
-          inner = `<table ${TABLE_ATTRS} width="100%"><tr><td valign="middle">${ident}</td>${td(av?.html, 'valign="middle" align="right" style="padding-left:16px;"')}</tr><tr><td colspan="2">${deco}</td></tr><tr><td valign="top">${co?.html ?? ""}</td>${so ? `<td valign="bottom" align="right">${so.html}</td>` : "<td></td>"}</tr></table>`;
+          inner = `<table ${TABLE_ATTRS} width="100%"><tr><td valign="middle">${ident}</td>${td(av?.html, 'valign="middle" align="right" style="padding-left:16px;"')}</tr>${co || so ? `<tr><td colspan="2">${deco}</td></tr><tr><td valign="top">${co?.html ?? ""}</td>${so ? `<td valign="bottom" align="right" style="padding-top:8px;white-space:nowrap;">${so.html}</td>` : "<td></td>"}</tr>` : ""}</table>`;
           break;
         case 4:
-          inner = `<table ${TABLE_ATTRS}><tr>${td(av?.html, 'valign="middle" style="padding-right:18px;"')}<td valign="middle">${ident}</td><td valign="middle" style="padding:0 0 0 20px;"><table ${TABLE_ATTRS}><tr><td style="border-left:1px solid ${k.line};padding-left:20px;">${stack(co?.html, so && vsp(10) + so.html)}</td></tr></table></td></tr></table>`;
+          inner = `<table ${TABLE_ATTRS}><tr>${td(av?.html, 'valign="middle" style="padding-right:18px;"')}<td valign="middle">${ident}</td><td valign="middle" width="250" style="width:250px;padding:0 0 0 20px;"><table ${TABLE_ATTRS}><tr><td style="border-left:1px solid ${k.line};padding-left:20px;">${stack(co?.html, so && vsp(10) + so.html)}</td></tr></table></td></tr></table>`;
           break;
         case 5:
-          inner = `<table ${TABLE_ATTRS} width="100%"><tr><td colspan="3">${ident}${vsp(12)}</td></tr><tr>${td(av?.html, 'valign="top" style="padding-right:18px;"')}<td valign="top">${co?.html ?? ""}</td>${so ? `<td valign="bottom" align="right" style="padding-left:16px;">${so.html}</td>` : ""}</tr></table>`;
+          inner = `<table ${TABLE_ATTRS} width="100%"><tr><td colspan="2">${ident}${vsp(12)}</td></tr><tr>${td(av?.html, 'valign="top" width="1" style="padding-right:22px;"')}<td valign="top">${co?.html ?? ""}</td></tr>${so ? `<tr><td colspan="2" align="right" style="padding-top:10px;white-space:nowrap;">${so.html}</td></tr>` : ""}</table>`;
           break;
         case 6: {
           bleed = true;
@@ -291,7 +302,7 @@ export function composeSkin(variant: string): Skin {
         }
         case 7: {
           bleed = true;
-          const band = co || so ? `<tr><td bgcolor="${t.primary}" style="background-color:${t.primary};padding:12px 20px;"><table ${TABLE_ATTRS} width="100%"><tr><td valign="middle">${co?.html ?? ""}</td>${so ? `<td valign="middle" align="right" style="padding-left:14px;">${so.html}</td>` : ""}</tr></table></td></tr>` : "";
+          const band = co || so ? `<tr><td bgcolor="${t.primary}" style="background-color:${t.primary};padding:12px 20px;">${sp_.contact === 7 ? `${co?.html ?? ""}${so ? vsp(10) + so.html : ""}` : `<table ${TABLE_ATTRS} width="100%"><tr><td valign="middle">${co?.html ?? ""}</td>${so ? `<td valign="middle" align="right" style="padding-left:14px;white-space:nowrap;">${so.html}</td>` : ""}</tr></table>`}</td></tr>` : "";
           inner = `<table ${TABLE_ATTRS} width="100%"><tr><td style="padding:18px 20px;"><table ${TABLE_ATTRS}><tr>${td(av?.html, 'valign="middle" style="padding-right:18px;"')}<td valign="middle">${ident}</td></tr></table></td></tr>${band}</table>`;
           break;
         }
@@ -302,12 +313,12 @@ export function composeSkin(variant: string): Skin {
           break;
         }
         case 9:
-          inner = `${stack(av?.html, av && vsp(12), ident, (co || so) && deco)}<table ${TABLE_ATTRS} width="100%"><tr><td valign="top">${co?.html ?? ""}</td>${so ? `<td valign="bottom" align="right">${so.html}</td>` : ""}</tr></table>`;
+          inner = `${stack(av?.html, av && vsp(12), ident, (co || so) && deco)}<table ${TABLE_ATTRS} width="100%"><tr><td valign="top">${co?.html ?? ""}</td>${so ? `<td valign="bottom" align="right" style="padding-top:8px;white-space:nowrap;">${so.html}</td>` : ""}</tr></table>`;
           break;
         default: {
           bleed = true;
           const head = `<tr><td bgcolor="${t.primary}" style="background-color:${t.primary};padding:20px 24px;"><table ${TABLE_ATTRS} width="100%"><tr><td valign="middle">${ident}</td>${td(av?.html, 'valign="middle" align="right" style="padding-left:16px;"')}</tr></table></td></tr>`;
-          inner = `<table ${TABLE_ATTRS} width="100%">${head}<tr><td style="padding:18px 24px;"><table ${TABLE_ATTRS} width="100%"><tr><td valign="top">${co?.html ?? ""}</td>${so ? `<td valign="bottom" align="right">${so.html}</td>` : ""}</tr></table></td></tr></table>`;
+          inner = `<table ${TABLE_ATTRS} width="100%">${head}${co || so ? `<tr><td style="padding:18px 24px;"><table ${TABLE_ATTRS} width="100%"><tr><td valign="top">${co?.html ?? ""}</td>${so ? `<td valign="bottom" align="right" style="padding-top:8px;white-space:nowrap;">${so.html}</td>` : ""}</tr></table></td></tr>` : ""}</table>`;
         }
       }
       return frame(sp_.frame, inner, w, t, bleed);

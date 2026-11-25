@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { SignatureDocSchema } from "@/lib/schema/document";
 import { renderToEmailHtml } from "@/lib/renderer/email-html";
-import { PRESETS } from "./presets";
+import { COLLECTIONS, DEFAULT_COLLECTION, PRESETS } from "./presets";
 
 describe("presets", () => {
   it("ships 100+ unique templates", () => {
@@ -26,5 +26,15 @@ describe("presets", () => {
     const studio = PRESETS.filter((p) => p.engine === "studio");
     expect(studio.length).toBe(100);
     expect(new Set(studio.map((p) => skeleton(renderToEmailHtml(p.doc)))).size).toBeGreaterThanOrEqual(95);
+  });
+
+  it("keeps every template id and puts each one in exactly one collection (40 / 50 / 31)", () => {
+    const hand = ["classic", "modern-split", "minimal", "editorial-arch", "bold-letter", "circle-accent", "green-sidebar", "maroon-frame", "spectrum", "geometric", "noir-agent", "orange-logo", "ticket", "listing-banner", "soft-card", "consultant-blue", "executive-navy", "minimal-line", "dark-luxe", "pastel-pill", "split-color"];
+    const ids = new Set(PRESETS.map((p) => p.id));
+    for (const id of [...hand, ...Array.from({ length: 100 }, (_, i) => `studio-${String(i + 1).padStart(3, "0")}`)]) expect(ids.has(id), id).toBe(true);
+    expect(PRESETS.length).toBe(121);
+    const count = (c: string) => PRESETS.filter((p) => p.collection === c).length;
+    expect(COLLECTIONS.map(count)).toEqual([40, 50, 31]);
+    expect(DEFAULT_COLLECTION).toBe("Essentials");
   });
 });

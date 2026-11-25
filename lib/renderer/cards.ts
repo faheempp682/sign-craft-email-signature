@@ -172,7 +172,8 @@ export class Slots {
 }
 
 export const td = (html: string | undefined, attrs = "") => (html ? `<td ${attrs}>${html}</td>` : "");
-export const fonts = (t: Theme) => fontStack(t);
+/** Font stack for a card's root table. `overflow-wrap:anywhere` lets long names/emails wrap instead of widening the card. */
+export const fonts = (t: Theme) => `${fontStack(t)};overflow-wrap:anywhere`;
 
 /* ===== editorial-arch (Neermana): beige card, arch photo, big serif name, side strip of socials ===== */
 const editorialArch: Skin = {

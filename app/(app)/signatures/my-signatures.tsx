@@ -2,11 +2,23 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { renderToEmailHtml } from "@/lib/renderer/email-html";
 import type { SignatureDoc } from "@/lib/schema/document";
 
 export type MySignature = { id: string; name: string; updatedAt: string; doc: SignatureDoc };
+
+const fmt = (iso: string, timeZone?: string) => new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone }).format(new Date(iso));
+
+/**
+ * Server and browser must render identical text on first paint or React reports a hydration mismatch, so the first
+ * render is a fixed-locale UTC date. After mount it switches to the viewer's own local date.
+ */
+function UpdatedDate({ iso }: { iso: string }) {
+  const [local, setLocal] = useState(false);
+  useEffect(() => setLocal(true), []);
+  return <time dateTime={iso}>{fmt(iso, local ? undefined : "UTC")}</time>;
+}
 
 export function MySignatures({ items }: { items: MySignature[] }) {
   const router = useRouter();
@@ -57,7 +69,7 @@ export function MySignatures({ items }: { items: MySignature[] }) {
               <div className="flex items-start justify-between gap-3 p-5">
                 <div className="min-w-0">
                   <h3 className="truncate font-semibold">{s.name}</h3>
-                  <p className="mt-1 text-sm text-muted">Updated {new Date(s.updatedAt).toLocaleDateString()}</p>
+                  <p className="mt-1 text-sm text-muted">Updated <UpdatedDate iso={s.updatedAt} /></p>
                 </div>
                 <div className="flex shrink-0 gap-2">
                   <Link href={`/editor?s=${s.id}`} className="btn btn-primary">Edit</Link>

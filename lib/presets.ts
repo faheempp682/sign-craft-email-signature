@@ -11,7 +11,11 @@ import { LAYOUT_NAMES, NAME_NAMES, genSpec } from "@/lib/renderer/studio";
 export const CATEGORIES = ["Corporate", "Creative", "Real estate", "Elegant", "Minimal"] as const;
 export type Category = (typeof CATEGORIES)[number];
 
-export type Preset = { id: string; name: string; category: Category; engine: TemplateId; doc: SignatureDoc };
+export const COLLECTIONS = ["Essentials", "Studio", "Classic"] as const;
+export type Collection = (typeof COLLECTIONS)[number];
+export const DEFAULT_COLLECTION: Collection = "Essentials";
+
+export type Preset = { id: string; name: string; category: Category; collection: Collection; engine: TemplateId; doc: SignatureDoc };
 
 const CATEGORY: Record<TemplateId, Category> = {
   classic: "Minimal",
@@ -91,7 +95,7 @@ const URLS: Record<(typeof NETS)[number], string> = {
 };
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z]/g, "");
 
-function studioDoc(n: number): SignatureDoc {
+function studioDoc(n: number): { doc: SignatureDoc; palette: string } {
   const i = n - 1;
   const p = PERSONAS[i % PERSONAS.length];
   const pal = PALETTES[(i * 7 + 3) % PALETTES.length];
@@ -111,13 +115,16 @@ function studioDoc(n: number): SignatureDoc {
     { type: "social", links: nets.map((network) => ({ network, url: URLS[network] })) },
   ];
   const fonts = ["Arial", "Verdana", "Trebuchet MS", "Tahoma", "Helvetica", "Georgia"] as const;
-  return SignatureDocSchema.parse({
+  // The "no photo" treatment is a real photo-less design: drop the block so the editor doesn't offer a dead control.
+  const noPhoto = genSpec(`s${String(n).padStart(3, "0")}`).photo === 7;
+  const doc = SignatureDocSchema.parse({
     version: 1,
     template_id: "studio",
     variant: `s${String(n).padStart(3, "0")}`,
     theme: { primary: pal.primary, text: pal.text, muted: pal.muted, bg: pal.bg, accent2: pal.accent2, font: fonts[(i * 5) % fonts.length], spacing: "normal" },
-    blocks,
+    blocks: noPhoto ? blocks.filter((b) => b.type !== "avatar") : blocks,
   });
+  return { doc, palette: pal.name };
 }
 
 function categoryFor(doc: SignatureDoc, n: number): Category {
@@ -130,20 +137,53 @@ function categoryFor(doc: SignatureDoc, n: number): Category {
   return n % 2 ? "Real estate" : "Corporate";
 }
 
+/**
+ * Curated collections (a hand-picked judgement from the visual QA pass, not a formula):
+ *  - Essentials (40): the best-balanced, most professional designs, safe for anyone.
+ *  - Studio (50): the most distinctive, expressive designs.
+ *  - Classic (31): the remaining, more conventional designs.
+ * Template ids never change; a template belongs to exactly one collection.
+ */
+const ESSENTIALS: readonly string[] = [
+  "classic", "modern-split", "minimal", "green-sidebar", "maroon-frame", "executive-navy", "minimal-line", "dark-luxe",
+  "pastel-pill", "split-color", "consultant-blue", "soft-card", "listing-banner", "noir-agent",
+  ...[1, 3, 9, 11, 12, 16, 18, 19, 22, 28, 31, 38, 44, 53, 55, 60, 64, 66, 71, 75, 77, 84, 85, 94, 97, 99].map((n) => `studio-${String(n).padStart(3, "0")}`),
+];
+const STUDIO_HAND: readonly string[] = ["editorial-arch", "bold-letter", "circle-accent", "spectrum", "geometric", "ticket", "orange-logo"];
+const STUDIO_TARGET = 50;
+
+/** How expressive a studio design is: unusual name/photo treatments and bold layouts score higher. */
+function expressiveness(doc: SignatureDoc): number {
+  const sp = genSpec(doc.variant ?? "s001");
+  const name = [0, 2, 3, 3, 1, 3, 2, 0, 3][sp.name];
+  const layout = [0, 0, 1, 0, 0, 0, 2, 2, 1, 0, 2][sp.layout];
+  const photo = [0, 0, 0, 2, 1, 0, 2, 0][sp.photo];
+  return name + layout + photo;
+}
+
+function assignCollections(list: Omit<Preset, "collection">[]): Preset[] {
+  const taken = new Map<string, Collection>();
+  ESSENTIALS.forEach((id) => taken.set(id, "Essentials"));
+  STUDIO_HAND.forEach((id) => taken.set(id, "Studio"));
+  const rest = list.filter((p) => !taken.has(p.id)).sort((a, b) => expressiveness(b.doc) - expressiveness(a.doc) || a.id.localeCompare(b.id));
+  rest.forEach((p, i) => taken.set(p.id, STUDIO_HAND.length + i < STUDIO_TARGET ? "Studio" : "Classic"));
+  return list.map((p) => ({ ...p, collection: taken.get(p.id)! }));
+}
+
 function build(): Preset[] {
-  const out: Preset[] = TEMPLATE_META.filter((m) => m.id !== "studio").map((m) => ({ id: m.id, name: m.name, category: CATEGORY[m.id], engine: m.id, doc: m.doc }));
+  const out: Omit<Preset, "collection">[] = TEMPLATE_META.filter((m) => m.id !== "studio").map((m) => ({ id: m.id, name: m.name, category: CATEGORY[m.id], engine: m.id, doc: m.doc }));
+  const names = new Set(out.map((p) => p.name));
   for (let n = 1; n <= 100; n++) {
-    const doc = studioDoc(n);
+    const { doc, palette } = studioDoc(n);
     const s = genSpec(doc.variant!);
-    out.push({
-      id: `studio-${String(n).padStart(3, "0")}`,
-      name: `${LAYOUT_NAMES[s.layout]} · ${NAME_NAMES[s.name]} ${String(n).padStart(3, "0")}`,
-      category: categoryFor(doc, n),
-      engine: "studio",
-      doc,
-    });
+    // "Layout · Palette", made unique with the name style when two designs share both.
+    let name = `${LAYOUT_NAMES[s.layout]} · ${palette}`;
+    if (names.has(name)) name = `${name} (${NAME_NAMES[s.name]})`;
+    if (names.has(name)) name = `${name} ${n}`;
+    names.add(name);
+    out.push({ id: `studio-${String(n).padStart(3, "0")}`, name, category: categoryFor(doc, n), engine: "studio", doc });
   }
-  return out;
+  return assignCollections(out);
 }
 
 export const PRESETS: Preset[] = build();
