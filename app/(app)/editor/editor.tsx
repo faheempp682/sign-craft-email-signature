@@ -14,6 +14,10 @@ import { pickFieldKey } from "@/lib/editor/preview-map";
 import { copyHtmlRich, downloadHtm } from "@/lib/export-client";
 import { GmailPush } from "@/components/gmail-push";
 import { fitBanner, toAssetInfo, uploadImage } from "@/lib/editor/upload";
+import { canCrop } from "@/lib/editor/crop";
+import { ImageCropper } from "@/components/image-cropper";
+import { GifMaker } from "@/components/gif-maker";
+import type { UploadPurpose } from "@/lib/storage/rules";
 import type { AssetInfo } from "@/lib/storage/rules";
 import { LivePreview, type PickHint, type Snapshot } from "./live-preview";
 import { CompatPanel } from "./compat-panel";
@@ -55,12 +59,40 @@ function collectErrors(doc: SignatureDoc): Errors {
   return errors;
 }
 
-function Field({ spec, value, error, id, onChange, onUpload }: { spec: FieldSpec; value: unknown; error?: string; id: string; onChange: (v: string) => void; onUpload?: (file: File) => Promise<string | void> }) {
+/** What the cropper needs to know about the image slot it is filling. */
+type CropSpec = { aspect: number; shape?: string; purpose: UploadPurpose };
+/** The animated GIF maker is offered on banner images. `enabled` false means the animated_gif flag is off for this person. */
+type GifSpec = { enabled: boolean; width: number; height: number };
+
+/** The files people picked, kept for the session so "Re-crop" can start from the original. Newest last; bounded so it cannot grow without limit. */
+const ORIGINALS = new Map<string, File>();
+const MAX_ORIGINALS = 6;
+function rememberOriginal(key: string, file: File) {
+  ORIGINALS.delete(key);
+  ORIGINALS.set(key, file);
+  while (ORIGINALS.size > MAX_ORIGINALS) ORIGINALS.delete(ORIGINALS.keys().next().value as string);
+}
+
+function Field({ spec, value, error, id, onChange, onUpload, crop, gif }: { spec: FieldSpec; value: unknown; error?: string; id: string; onChange: (v: string) => void; onUpload?: (file: File) => Promise<string | void>; crop?: CropSpec; gif?: GifSpec }) {
   const v = value === undefined || value === null ? "" : String(value);
   const [busy, setBusy] = useState(false);
   const [upErr, setUpErr] = useState("");
   const [upNote, setUpNote] = useState("");
-  async function pick(file: File | undefined) {
+  const [cropFile, setCropFile] = useState<File | null>(null);
+  const [gifOpen, setGifOpen] = useState(false);
+  const [hasOriginal, setHasOriginal] = useState(() => ORIGINALS.has(id));
+  /** Picking a still image opens the cropper first; GIFs (which may be animated) go straight to the upload. */
+  function pick(file: File | undefined) {
+    if (!file || !onUpload) return;
+    if (crop && canCrop(file)) {
+      rememberOriginal(id, file);
+      setHasOriginal(true);
+      setCropFile(file);
+      return;
+    }
+    void send(file);
+  }
+  async function send(file: File | undefined) {
     if (!file || !onUpload) return;
     setBusy(true);
     setUpErr("");
@@ -87,14 +119,45 @@ function Field({ spec, value, error, id, onChange, onUpload }: { spec: FieldSpec
         <input {...common} type={spec.kind === "number" ? "number" : "text"} onChange={(e) => onChange(e.target.value)} />
       )}
       {onUpload && (
-        <div>
+        <div className="space-y-2">
           <label className={`btn w-full cursor-pointer ${busy ? "pointer-events-none opacity-60" : ""}`}>
             {busy ? "Uploading…" : "Upload image"}
-            <input type="file" accept="image/png,image/jpeg,image/gif" className="sr-only" disabled={busy} onChange={(e) => { void pick(e.target.files?.[0]); e.target.value = ""; }} />
+            <input type="file" accept="image/png,image/jpeg,image/gif" className="sr-only" disabled={busy} onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} />
           </label>
+          {crop && hasOriginal && !busy && (
+            <button type="button" className="btn w-full" onClick={() => { const o = ORIGINALS.get(id); if (o) setCropFile(o); else setHasOriginal(false); }}>Re-crop last image</button>
+          )}
+          {gif && gif.enabled && (
+            <button type="button" className="btn w-full" disabled={busy} onClick={() => setGifOpen(true)}>Make animated GIF</button>
+          )}
+          {gif && !gif.enabled && <p className="text-xs text-muted">Animated GIFs are not enabled for your account. Ask an admin to turn them on.</p>}
           <p role="status" aria-live="polite" className="mt-1.5 min-h-4 text-xs text-red-600 dark:text-red-400">{upErr}</p>
           {upNote && <p data-testid="upload-note" className="text-xs text-muted">{upNote}</p>}
         </div>
+      )}
+      {cropFile && crop && (
+        <ImageCropper
+          file={cropFile}
+          aspect={crop.aspect}
+          shape={crop.shape}
+          purpose={crop.purpose}
+          title={crop.purpose === "banner" ? "Crop banner" : "Crop photo or logo"}
+          onCancel={() => setCropFile(null)}
+          onConfirm={(cropped) => { setCropFile(null); void send(cropped); }}
+          onUseOriginal={() => { const f = cropFile; setCropFile(null); void send(f); }}
+        />
+      )}
+      {gifOpen && gif && onUpload && (
+        <GifMaker
+          width={gif.width}
+          height={gif.height}
+          onClose={() => setGifOpen(false)}
+          onUse={async (file) => {
+            setUpErr("");
+            setUpNote((await onUpload(file)) || "");
+            setGifOpen(false);
+          }}
+        />
       )}
       {spec.hint && !error && <p className="text-xs text-muted">{spec.hint}</p>}
       {error && <p id={`${id}-err`} className="text-xs text-red-600 dark:text-red-400">{error}</p>}
@@ -102,12 +165,22 @@ function Field({ spec, value, error, id, onChange, onUpload }: { spec: FieldSpec
   );
 }
 
+/** Crop settings for an image slot: a photo or logo is cropped square, a banner to its own shape. */
+function cropFor(block: Block): CropSpec | undefined {
+  if (block.type === "avatar") return { aspect: 1, shape: block.shape, purpose: "avatar" };
+  if (block.type === "banner") {
+    const aspect = Number(block.width) / Number(block.height);
+    return { aspect: Number.isFinite(aspect) && aspect > 0 ? aspect : 4, shape: "square", purpose: "banner" };
+  }
+  return undefined;
+}
+
 /* ---------- one sortable block card ---------- */
 
 function BlockCard({
-  id, index, count, block, errors, isOpen, canUpload, onAsset, onToggle, onMove, onRemove, onPatch,
+  id, index, count, block, errors, isOpen, canUpload, gifEnabled, onAsset, onToggle, onMove, onRemove, onPatch,
 }: {
-  id: string; index: number; count: number; block: Block; errors: Errors; isOpen: boolean; canUpload: boolean; onAsset: (url: string, info: AssetInfo) => void;
+  id: string; index: number; count: number; block: Block; errors: Errors; isOpen: boolean; canUpload: boolean; gifEnabled: boolean; onAsset: (url: string, info: AssetInfo) => void;
   onToggle: () => void; onMove: (dir: -1 | 1) => void; onRemove: () => void; onPatch: (patch: Record<string, unknown>) => void;
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id });
@@ -146,6 +219,8 @@ function BlockCard({
                 value={(block as Record<string, unknown>)[spec.key]}
                 error={errors[`blocks.${index}.${spec.key}`]}
                 onChange={(v) => onPatch({ [spec.key]: cleanValue(spec.kind, v) })}
+                crop={canUpload && spec.upload ? cropFor(block) : undefined}
+                gif={canUpload && spec.upload && block.type === "banner" ? { enabled: gifEnabled, width: Number(block.width) || 400, height: Number(block.height) || 100 } : undefined}
                 onUpload={
                   canUpload && spec.upload
                     ? async (file) => {
@@ -169,8 +244,8 @@ function BlockCard({
 
 export type SavedSignature = { id: string; name: string; doc: SignatureDoc };
 
-export function Editor({ initial, explicit, aiNotice = false, saved, canSave = false, canUpload = false, assetInfo }: {
-  initial: string; explicit: boolean; aiNotice?: boolean; saved?: SavedSignature; canSave?: boolean; canUpload?: boolean; assetInfo?: AssetMap;
+export function Editor({ initial, explicit, aiNotice = false, saved, canSave = false, canUpload = false, gifEnabled = true, assetInfo }: {
+  initial: string; explicit: boolean; aiNotice?: boolean; saved?: SavedSignature; canSave?: boolean; canUpload?: boolean; gifEnabled?: boolean; assetInfo?: AssetMap;
 }) {
   const [showAiNotice, setShowAiNotice] = useState(aiNotice);
   const [ready, setReady] = useState(false); // false until localStorage has been consulted (avoids a hydration flash)
@@ -486,6 +561,7 @@ export function Editor({ initial, explicit, aiNotice = false, saved, canSave = f
                     errors={errors}
                     isOpen={open === ids[i]}
                     canUpload={canUpload}
+                    gifEnabled={gifEnabled}
                     onAsset={(url, info) => setAssets((a) => ({ ...a, [url]: info }))}
                     onToggle={() => setOpen(open === ids[i] ? null : ids[i])}
                     onMove={(dir) => reorder(i, i + dir)}
