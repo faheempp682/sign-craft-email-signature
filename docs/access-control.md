@@ -8,7 +8,7 @@ Phase 2 foundation. Everything here is enforced on the server (API routes and th
    `0003` creates the tables, seeds the default organization ("Kimp"), the feature flags and the AI limits, and gives every existing user a profile and a Member role.
 2. In `.env.local` (never in `.env.example`):
    - `ADMIN_EMAILS=you@company.com` (comma-separated). These people become admins the first time they use the app.
-   - `SUPABASE_SERVICE_ROLE_KEY=...` (Project Settings > API > `service_role`). **Server only, never prefix with `NEXT_PUBLIC_`.** It is used for one thing: promoting the `ADMIN_EMAILS` people, which cannot be done as the user themselves.
+   - `SUPABASE_SERVICE_ROLE_KEY=...` (Project Settings > API > `service_role`). **Server only, never prefix with `NEXT_PUBLIC_`.** It is used for two things: promoting the `ADMIN_EMAILS` people (which cannot be done as the user themselves), and storing the encrypted Google tokens for Gmail push ([docs/gmail-push.md](gmail-push.md)).
 3. Keep **email confirmation switched on** in Supabase (Auth settings). Only a *confirmed* email is promoted, so this is what stops a stranger from signing up with an admin's address first.
 4. Sign in with an `ADMIN_EMAILS` account. An **Admin** link appears in the sidebar.
 

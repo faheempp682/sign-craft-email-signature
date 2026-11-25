@@ -19,7 +19,7 @@ If the picture is not a signature, the AI says what it sees and nothing is creat
 
 1. **Gate:** sign-in, the `ai_vision` feature flag and the per-user limits (`/admin/limits`). Defaults: members 3 per minute and 10 per day, designers 6 and 40, admins unlimited.
 2. **Image:** the real file type is checked from its bytes (PNG, JPG, GIF; 5 MB maximum; absurd dimensions refused). It is straightened, shrunk to at most 1568 px, flattened onto white, reduced to its first frame and stripped of metadata.
-3. **Model:** Claude Sonnet reads it (`ANTHROPIC_VISION_MODEL` to change). The answer must be valid against the signature schema; if not, it is asked once to fix it.
+3. **Model:** Claude reads it. Haiku by default (cheap); set `ANTHROPIC_VISION_MODEL=claude-sonnet-5-5` for harder pictures. The answer must be valid against the signature schema; if not, it is asked once to fix it.
 4. **Clean-up:** images become placeholders, social links become home pages, banner links are dropped.
 5. Tokens are recorded against the user. A request that fails before the model is used, or a repeat answered from cache, is given back to the quota.
 
