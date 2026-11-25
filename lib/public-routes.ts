@@ -6,11 +6,14 @@
  *   /b   banner images that email recipients' mail apps load from inside a signature
  *   /r   click redirects from a signature
  *   /api/public   endpoints meant for anonymous callers (each must rate-limit itself)
+ *   /api/sync/run the scheduled directory/CRM sync. No session is involved: it checks a long shared secret itself
+ *                 (SYNC_CRON_SECRET, constant-time) and is switched off when that is unset or too short.
+ *                 Matched exactly: its siblings (/api/sync/runs, /preview, ...) are admin screens and stay private.
  *
  * SITE_PUBLIC is the marketing site and free generator. It is ONLY public when PUBLIC_SITE_ENABLED=true, so an
  * internal-only deployment never exposes it by accident.
  */
-export const ALWAYS_PUBLIC = ["/login", "/auth", "/c", "/b", "/r", "/api/public"];
+export const ALWAYS_PUBLIC = ["/login", "/auth", "/c", "/b", "/r", "/api/public", "/api/sync/run"];
 export const SITE_PUBLIC = ["/", "/signature-generator", "/for", "/privacy", "/terms", "/sitemap.xml", "/robots.txt"];
 
 const matches = (pathname: string, list: string[]) => list.some((p) => pathname === p || (p !== "/" && pathname.startsWith(`${p}/`)));
