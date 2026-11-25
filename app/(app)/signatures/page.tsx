@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PRESETS } from "@/lib/presets";
 import { SignatureDocSchema } from "@/lib/schema/document";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getUser } from "@/lib/supabase/server";
 import { Gallery } from "./gallery";
 import { MySignatures, type MySignature } from "./my-signatures";
 
@@ -17,7 +17,11 @@ const STATS = [
 async function loadMine(): Promise<MySignature[] | null> {
   const supabase = await createClient();
   if (!supabase) return null; // not configured: hide the section entirely
-  const { data } = await supabase.from("signatures").select("id, name, doc_json, updated_at").order("updated_at", { ascending: false });
+  const user = await getUser();
+  if (!user) return null;
+  // Own signatures only. Organization admins can also READ their employees' tagged signatures, so row-level security alone
+  // no longer keeps this list to "mine".
+  const { data } = await supabase.from("signatures").select("id, name, doc_json, updated_at").eq("owner_id", user.id).order("updated_at", { ascending: false });
   // Re-validate every stored document before rendering it; skip anything that no longer matches the schema.
   return (data ?? []).flatMap((r) => {
     const doc = SignatureDocSchema.safeParse(r.doc_json);

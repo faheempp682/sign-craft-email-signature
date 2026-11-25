@@ -11,12 +11,13 @@ import { Editor, type SavedSignature } from "./editor";
 
 export const metadata = { title: "Editor · SignCraft" };
 
-async function loadSaved(id: string): Promise<SavedSignature | null> {
-  if (!z.string().uuid().safeParse(id).success) return null;
+async function loadSaved(id: string, ownerId: string | undefined): Promise<SavedSignature | null> {
+  if (!ownerId || !z.string().uuid().safeParse(id).success) return null;
   const supabase = await createClient();
   if (!supabase) return null;
-  // RLS limits this to the signed-in user's own rows.
-  const { data } = await supabase.from("signatures").select("id, name, doc_json").eq("id", id).maybeSingle();
+  // Own rows only. RLS also lets an organization admin read employees' tagged signatures, but the editor saves as the
+  // owner, so opening someone else's here would only fail later at Save.
+  const { data } = await supabase.from("signatures").select("id, name, doc_json").eq("id", id).eq("owner_id", ownerId).maybeSingle();
   if (!data) return null;
   const doc = SignatureDocSchema.safeParse(data.doc_json);
   return doc.success ? { id: data.id, name: data.name, doc: doc.data } : null;
@@ -48,7 +49,7 @@ export default async function EditorPage({ searchParams }: { searchParams: Promi
   // Animated GIFs are enabled per account; when the check cannot be made, say "off" rather than offering a tool that will fail.
   const supabase = user ? await createClient() : null;
   const gifEnabled = supabase ? (await featureEnabled(supabase, "animated_gif")) === true : true;
-  const saved = s ? await loadSaved(s) : null;
+  const saved = s ? await loadSaved(s, user?.id) : null;
   if (s && !saved) notFound();
 
   // An explicit ?t= means "start from this template". Without it the editor resumes the saved draft.
