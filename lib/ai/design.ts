@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { SAFE_FONTS, SOCIAL_NETWORKS, SignatureDocSchema, TEMPLATE_IDS, type Block, type SignatureDoc } from "@/lib/schema/document";
+import { NETWORK_HOSTS, hostOf, matchesHost } from "./social";
 
 /* ---------- request ---------- */
 
@@ -78,29 +79,6 @@ export function extractJson(text: string): unknown {
   if (start < 0 || end <= start) throw new Error("No JSON object found in the reply.");
   return JSON.parse(text.slice(start, end + 1));
 }
-
-const NETWORK_HOSTS: Record<(typeof SOCIAL_NETWORKS)[number], string[]> = {
-  linkedin: ["linkedin.com"],
-  twitter: ["twitter.com", "x.com"],
-  facebook: ["facebook.com", "fb.com"],
-  instagram: ["instagram.com"],
-  youtube: ["youtube.com", "youtu.be"],
-  github: ["github.com"],
-  tiktok: ["tiktok.com"],
-};
-
-function hostOf(url: string): string | null {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "").toLowerCase();
-  } catch {
-    return null;
-  }
-}
-
-const matchesHost = (url: string, hosts: string[]) => {
-  const h = hostOf(url);
-  return !!h && hosts.some((x) => h === x || h.endsWith(`.${x}`));
-};
 
 const placeholder = (w: number, h: number) => `https://placehold.co/${w}x${h}.png`;
 
