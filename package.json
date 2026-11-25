@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "client-pack": "node scripts/client-pack.mjs",
-    "test:e2e": "node --test \"e2e/**/*.e2e.mjs\""
+    "test:e2e": "node --test \"e2e/**/*.e2e.mjs\"",
+    "vision:smoke": "node scripts/vision-smoke.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.13.0",
