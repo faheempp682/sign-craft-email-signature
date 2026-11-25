@@ -125,7 +125,7 @@ export function CreateForm() {
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 hidden md:block">
         <span className="absolute inset-y-0 left-[8%] w-px bg-border" />
         <span className="absolute inset-y-0 right-[8%] w-px bg-border" />
-        <span className="absolute inset-x-[-6%] top-[11rem] h-px bg-border" />
+        <span className="absolute inset-x-[-3%] top-[11rem] h-px bg-border" />
         <Marker className="left-[8%] top-[11rem]" />
         <Marker className="left-[92%] top-[11rem]" />
       </div>
