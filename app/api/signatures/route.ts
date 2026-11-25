@@ -10,6 +10,8 @@ const SaveSchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().trim().min(1, "Give the signature a name.").max(80, "Keep the name under 80 characters."),
   doc: SignatureDocSchema,
+  /** Optional: tag the signature with an organization you belong to, so its admins can read it. null removes the tag. */
+  org_id: z.string().uuid().nullable().optional(),
 });
 
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
@@ -28,8 +30,9 @@ export async function POST(req: Request) {
   }
   const parsed = SaveSchema.safeParse(body);
   if (!parsed.success) return json({ error: "bad_request", message: parsed.error.issues[0]?.message ?? "Invalid signature." }, 400);
-  const { id, name, doc } = parsed.data;
-  const row = { name, template_id: doc.template_id, doc_json: doc };
+  const { id, name, doc, org_id } = parsed.data;
+  const row: { name: string; template_id: string; doc_json: typeof doc; org_id?: string | null } = { name, template_id: doc.template_id, doc_json: doc };
+  if (org_id !== undefined) row.org_id = org_id; // the database refuses an organization the caller is not in
 
   if (id) {
     const { data, error } = await supabase.from("signatures").update(row).eq("id", id).select("id, name, updated_at").maybeSingle();
@@ -38,7 +41,7 @@ export async function POST(req: Request) {
     return json(data);
   }
 
-  const { count } = await supabase.from("signatures").select("id", { count: "exact", head: true });
+  const { count } = await supabase.from("signatures").select("id", { count: "exact", head: true }).eq("owner_id", g.ctx.user.id); // own rows only: org admins can also read tagged signatures of others
   if ((count ?? 0) >= MAX_SIGNATURES_PER_USER) return json({ error: "quota", message: `You have reached the limit of ${MAX_SIGNATURES_PER_USER} saved signatures.` }, 429);
 
   const { data, error } = await supabase.from("signatures").insert(row).select("id, name, updated_at").single();
