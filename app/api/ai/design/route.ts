@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { DesignError, DesignRequestSchema, generateDesign, type Complete } from "@/lib/ai/design";
+import { openAiGate, type AiGate } from "@/lib/authz/ai-gate";
 
 export const runtime = "nodejs";
 
@@ -7,15 +8,6 @@ export const runtime = "nodejs";
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-haiku-5-5";
 
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
-
-/* Stopgap abuse guard: 10 requests / minute / IP, in memory. Real per-user limits arrive with auth + the ai_usage table. */
-const hits = new Map<string, number[]>();
-function rateLimited(ip: string, now = Date.now()): boolean {
-  const recent = (hits.get(ip) ?? []).filter((t) => now - t < 60_000);
-  recent.push(now);
-  hits.set(ip, recent);
-  return recent.length > 10;
-}
 
 export async function POST(req: Request) {
   if (!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN) {
@@ -28,9 +20,17 @@ export async function POST(req: Request) {
     );
   }
 
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
-  if (rateLimited(ip)) return json({ error: "rate_limited", message: "Too many requests. Please wait a minute and try again." }, 429);
+  // Sign-in, feature flag and per-user limits (stored in the database).
+  const gate = await openAiGate("ai_design", req);
+  if (!gate.ok) return gate.response;
+  try {
+    return await handle(req, gate);
+  } finally {
+    await gate.settle();
+  }
+}
 
+async function handle(req: Request, gate: AiGate): Promise<Response> {
   let body: unknown;
   try {
     body = await req.json();
@@ -49,6 +49,7 @@ export async function POST(req: Request) {
       messages,
       output_config: { effort: "low" }, // a JSON spec needs little reasoning; keeps it fast and cheap
     });
+    gate.record((res.usage?.input_tokens ?? 0) + (res.usage?.cache_creation_input_tokens ?? 0) + (res.usage?.cache_read_input_tokens ?? 0), res.usage?.output_tokens ?? 0);
     const text = res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
     return { text, stopReason: res.stop_reason };
   };

@@ -7,10 +7,16 @@ const state = vi.hoisted(() => ({
   user: { id: "user-1" } as { id: string } | null,
   inserted: [] as Record<string, unknown>[],
   count: 0,
+  /** Result of the animated_gif feature check: true / false, or "error" when the check itself fails. */
+  animatedGif: true as boolean | "error",
 }));
 
 vi.mock("@/lib/supabase/server", () => {
   const client = {
+    rpc: async (fn: string) => {
+      if (fn !== "feature_enabled") return { data: null, error: { message: "unexpected rpc" } };
+      return state.animatedGif === "error" ? { data: null, error: { message: "boom" } } : { data: state.animatedGif, error: null };
+    },
     from: () => ({
       select: async () => ({ count: state.count }),
       insert: async (row: Record<string, unknown>) => {
@@ -39,6 +45,7 @@ beforeEach(() => {
   state.user = { id: "user-1" };
   state.inserted = [];
   state.count = 0;
+  state.animatedGif = true;
   bunny = vi.fn(async () => new Response(null, { status: 201 }));
   vi.stubGlobal("fetch", bunny);
 });
@@ -98,6 +105,29 @@ describe("POST /api/upload", () => {
     expect(body.animated).toBe(true);
     expect(body.warnings.map((w: { code: string }) => w.code)).toContain("gif-outlook");
     expect(state.inserted[0]).toMatchObject({ animated: true, type: "image/gif" });
+  });
+
+  describe("animated GIF feature flag", () => {
+    it("blocks an animated GIF when the flag is off, before anything is uploaded or recorded", async () => {
+      state.animatedGif = false;
+      const res = await upload(await animatedGif(200, 100, 4), "a.gif", "image/gif");
+      expect(res.status).toBe(403);
+      expect(await res.json()).toMatchObject({ error: "feature_disabled" });
+      expect(bunny).not.toHaveBeenCalled();
+      expect(state.inserted).toHaveLength(0);
+    });
+
+    it("still allows still images and single-frame GIFs when the flag is off", async () => {
+      state.animatedGif = false;
+      expect((await upload(await png(50, 50))).status).toBe(200);
+    });
+
+    it("fails closed (503) when the flag check itself fails", async () => {
+      state.animatedGif = "error";
+      const res = await upload(await animatedGif(200, 100, 4), "a.gif", "image/gif");
+      expect(res.status).toBe(503);
+      expect(bunny).not.toHaveBeenCalled();
+    });
   });
 
   it("returns the size warning, with the real size, for an animation that is still too heavy", async () => {

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { getUser, createClient } from "@/lib/supabase/server";
+import { deny, featureEnabled, requireUser } from "@/lib/authz/guard";
 import { LIMITS, UPLOAD_PURPOSES, type UploadPurpose } from "@/lib/storage/rules";
 import { UploadError, processUpload } from "@/lib/storage/process";
 import { getBunnyConfig, uploadToBunny } from "@/lib/storage/bunny";
@@ -16,9 +16,9 @@ export async function POST(req: Request) {
     return json({ error: "not_configured", message: "Image upload is not set up yet. Add the BUNNY_* variables to .env.local and restart the dev server." }, 503);
   }
 
-  const user = await getUser();
-  const supabase = await createClient();
-  if (!user || !supabase) return json({ error: "unauthorized", message: "Sign in to upload images." }, 401);
+  const g = await requireUser({ unauthorized: "Sign in to upload images." });
+  if (!g.ok) return g.response;
+  const { supabase, user } = g.ctx;
 
   // Cheap early rejection before buffering the body.
   const declared = Number(req.headers.get("content-length") ?? 0);
@@ -44,6 +44,13 @@ export async function POST(req: Request) {
   } catch (e) {
     if (e instanceof UploadError) return json({ error: e.code, message: e.message }, e.status);
     throw e;
+  }
+
+  // Animated GIFs are enabled per account (PROJECT.md section 10), so the flag is checked once we know the file is animated.
+  if (processed.info.animated) {
+    const on = await featureEnabled(supabase, "animated_gif");
+    if (on === null) return deny(503, "authz_unavailable", "Access control is not set up yet. Apply supabase/migrations/0003_access_control.sql, then try again.");
+    if (!on) return deny(403, "feature_disabled", "Animated GIFs are not enabled for your account. Ask an admin to turn them on, or upload a still image.");
   }
 
   const { count } = await supabase.from("assets").select("id", { count: "exact", head: true });

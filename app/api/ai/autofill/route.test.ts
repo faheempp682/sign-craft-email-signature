@@ -16,7 +16,8 @@ vi.mock("@anthropic-ai/sdk", () => {
   }
   return { default: Anthropic };
 });
-vi.mock("@/lib/supabase/server", () => ({ getUser: async () => null }));
+// No Supabase configured: the route runs in local draft mode, with the in-memory per-IP limits.
+vi.mock("@/lib/supabase/server", () => ({ createClient: async () => null, getUser: async () => null }));
 vi.mock("@/lib/ai/fetch-page", async (original) => ({ ...(await original<typeof import("@/lib/ai/fetch-page")>()), fetchPage: mocks.fetchPage }));
 
 import Anthropic from "@anthropic-ai/sdk";

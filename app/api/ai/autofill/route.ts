@@ -5,8 +5,8 @@ import type { Complete } from "@/lib/ai/design";
 import { FetchError, checkUrl, fetchPage, type FetchErrorCode } from "@/lib/ai/fetch-page";
 import { digestPage } from "@/lib/ai/html-text";
 import { matchesHost } from "@/lib/ai/social";
-import { TtlCache, createWindowLimiter } from "@/lib/ai/ttl-cache";
-import { getUser } from "@/lib/supabase/server";
+import { TtlCache } from "@/lib/ai/ttl-cache";
+import { openAiGate, type AiGate } from "@/lib/authz/ai-gate";
 
 export const runtime = "nodejs";
 
@@ -15,10 +15,6 @@ const MODEL = process.env.ANTHROPIC_AUTOFILL_MODEL || "claude-haiku-5-5";
 const MAX_OUTPUT_TOKENS = 700;
 
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
-
-/* Stopgap cost and abuse controls, in memory. Real per-user limits arrive with the ai_usage table. */
-const perMinute = createWindowLimiter(60_000, 8);
-const perDay = createWindowLimiter(24 * 60 * 60_000, Number(process.env.AUTOFILL_DAILY_LIMIT) || 60);
 
 type Cached = AutofillResult & { source: { type: "text" | "url"; host?: string; truncated: boolean } };
 const cache = new TtlCache<Cached>(200, 60 * 60_000);
@@ -30,11 +26,17 @@ export async function POST(req: Request) {
     return json({ error: "not_configured", message: "The AI is not set up yet. Add ANTHROPIC_API_KEY=your-key to .env.local, then restart the dev server." }, 503);
   }
 
-  const user = await getUser();
-  const who = user?.id ?? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
-  if (perMinute(who)) return json({ error: "rate_limited", message: "Too many requests. Please wait a minute and try again." }, 429);
-  if (perDay(who)) return json({ error: "daily_limit", message: "You have reached today's autofill limit. Try again tomorrow, or fill the details in by hand." }, 429);
+  // Sign-in, feature flag and per-user limits (stored in the database). A cached answer costs nothing, so it is given back below.
+  const gate = await openAiGate("ai_autofill", req);
+  if (!gate.ok) return gate.response;
+  try {
+    return await handle(req, gate);
+  } finally {
+    await gate.settle();
+  }
+}
 
+async function handle(req: Request, gate: AiGate): Promise<Response> {
   let body: unknown;
   try {
     body = await req.json();
@@ -93,6 +95,7 @@ export async function POST(req: Request) {
       messages,
       output_config: { effort: "low" },
     });
+    gate.record((res.usage?.input_tokens ?? 0) + (res.usage?.cache_creation_input_tokens ?? 0) + (res.usage?.cache_read_input_tokens ?? 0), res.usage?.output_tokens ?? 0);
     const text = res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
     return { text, stopReason: res.stop_reason };
   };

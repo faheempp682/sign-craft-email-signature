@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/authz/guard";
 import { SignatureDocSchema } from "@/lib/schema/document";
 
 export const runtime = "nodejs";
@@ -16,12 +16,9 @@ const json = (body: unknown, status = 200) => Response.json(body, { status, head
 
 /** Create (no id) or update (id) a signature. The document is fully validated again on the server. */
 export async function POST(req: Request) {
-  const supabase = await createClient();
-  if (!supabase) return json({ error: "not_configured", message: "Saving is not set up yet. Add the Supabase variables to .env.local." }, 503);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return json({ error: "unauthorized", message: "Sign in to save signatures." }, 401);
+  const g = await requireUser({ notConfigured: "Saving is not set up yet. Add the Supabase variables to .env.local.", unauthorized: "Sign in to save signatures." });
+  if (!g.ok) return g.response;
+  const { supabase } = g.ctx;
 
   let body: unknown;
   try {

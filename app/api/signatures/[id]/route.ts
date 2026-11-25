@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/authz/guard";
 
 export const runtime = "nodejs";
 
@@ -9,12 +9,9 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   const { id } = await params;
   if (!z.string().uuid().safeParse(id).success) return json({ error: "bad_request", message: "Invalid signature id." }, 400);
 
-  const supabase = await createClient();
-  if (!supabase) return json({ error: "not_configured", message: "Saving is not set up yet." }, 503);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return json({ error: "unauthorized", message: "Sign in first." }, 401);
+  const g = await requireUser({ notConfigured: "Saving is not set up yet." });
+  if (!g.ok) return g.response;
+  const { supabase } = g.ctx;
 
   // RLS restricts this to the caller's own rows, so deleting someone else's id simply matches nothing.
   const { data, error } = await supabase.from("signatures").delete().eq("id", id).select("id");
