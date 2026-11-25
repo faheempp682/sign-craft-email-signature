@@ -12,6 +12,7 @@ import { BLOCK_LABEL, BLOCK_TYPES, FIELDS, cleanValue, createBlock, type BlockTy
 import { clearDraft, getStorage, loadDraft, saveDraft, type Draft } from "@/lib/editor/draft";
 import { pickFieldKey } from "@/lib/editor/preview-map";
 import { copyHtmlRich, downloadHtm } from "@/lib/export-client";
+import { GmailPush } from "@/components/gmail-push";
 import { fitBanner, toAssetInfo, uploadImage } from "@/lib/editor/upload";
 import type { AssetInfo } from "@/lib/storage/rules";
 import { LivePreview, type PickHint, type Snapshot } from "./live-preview";
@@ -548,6 +549,7 @@ export function Editor({ initial, explicit, aiNotice = false, saved, canSave = f
           <button className="btn" disabled={!valid} onClick={() => current && downloadHtm(current.html, `${doc.template_id}-signature.htm`)}>Download .htm</button>
         </div>
         <p role="status" aria-live="polite" className="mt-3 min-h-5 text-sm text-muted">{status}</p>
+        <GmailPush doc={valid && current ? current.parsed : null} returnTo="/editor" />
       </div>
     </div>
   );

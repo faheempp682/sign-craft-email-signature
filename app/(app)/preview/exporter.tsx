@@ -7,6 +7,7 @@ import { renderToEmailHtml } from "@/lib/renderer/email-html";
 import { TEMPLATE_META, getTemplate } from "@/lib/templates";
 import { copyHtmlRich, downloadHtm } from "@/lib/export-client";
 import { CLIENTS, CLIENT_IDS, previewDocument, type ClientId } from "@/lib/preview-clients";
+import { GmailPush } from "@/components/gmail-push";
 
 export function Exporter({ initial }: { initial: TemplateId }) {
   const [id, setId] = useState<TemplateId>(initial);
@@ -78,6 +79,7 @@ export function Exporter({ initial }: { initial: TemplateId }) {
           <button className="btn w-full" onClick={download}>Download .htm</button>
           <p role="status" aria-live="polite" className="min-h-5 text-sm text-muted">{status}</p>
         </div>
+        <GmailPush doc={doc} returnTo="/preview" />
       </aside>
 
       <section className="card overflow-hidden lg:col-span-2" aria-label="Source">
