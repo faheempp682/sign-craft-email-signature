@@ -79,6 +79,12 @@ Apply `supabase/migrations/0004_google_connections.sql` after 0001 to 0003.
 | "...over Gmail's 10,000 limit" | Shorten the disclaimer or pick a simpler template. The largest built-in template is about 7,800 characters. |
 | "Google refused the change" | Workspace policy, or the mailbox has no Gmail. Ask your admin. |
 
+## Future improvements (not built yet)
+
+- **Restore the previous signature.** Every replacement already saves the signature it replaced in `gmail_push_log` (owner-readable), but there is no button to put it back. Until there is, restoring means copying it from that table.
+- **Encryption key rotation.** `GOOGLE_TOKEN_ENCRYPTION_KEY` has no rotation tool. Changing or losing it makes every stored connection unreadable, so everyone has to reconnect. A rotation path would accept a previous key for decryption and re-encrypt tokens under the new one.
+- Personal Gmail support (needs Google's app verification), admin-managed team deployment, and checking how Workspace-managed signatures interact with one a person sets themselves.
+
 ## What the automated tests cover, and what they cannot
 
 Covered (about 200 tests): encryption and owner binding, the sign-in cookie and PKCE, every callback failure (forged, replayed, wrong person, denied, admin-blocked, wrong domain, personal Gmail, missing permission, no refresh token), token refresh and revocation handling, Gmail error mapping, the preview-then-confirm rules, database access rules against a real Postgres, all routes, and the on-screen flow. Each safety rule was also checked by deliberately breaking it and confirming a test fails.
