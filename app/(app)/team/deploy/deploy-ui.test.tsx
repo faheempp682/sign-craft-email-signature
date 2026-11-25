@@ -77,6 +77,43 @@ describe("Gmail tab", () => {
     expect(sent.find((s) => s.url === "/api/deploy/gmail/deploy")!.body).toEqual({ fingerprint: PLAN.fingerprint, set: 1, replace: 2, confirmed: true });
   });
 
+  describe("people with no approved signature", () => {
+    const planWith = (noVersion: number) => ({
+      ...PLAN,
+      items: [item(1, "set"), ...Array.from({ length: noVersion }, (_, i) => item(10 + i, "skip", "no_version")), item(5, "skip", "already_current")],
+    });
+
+    it("offers to approve the template for exactly the people listed as having none, only after the tick", async () => {
+      answers["GET /api/deploy/status"] = { body: STATUS_OK };
+      answers["POST /api/deploy/gmail/plan"] = { body: planWith(2) };
+      answers["POST /api/team/defaults"] = { body: { created: 2, already_approved: 0, no_template: 0 } };
+      render(<GmailTab onStarted={() => {}} />);
+      fireEvent.click(await screen.findByRole("button", { name: "Make a plan" }));
+      const group = await screen.findByRole("group", { name: "People without an approved signature" });
+      expect(within(group).getByText(/2 people have no approved signature/)).toBeTruthy();
+      const button = within(group).getByRole("button", { name: "Approve template signatures" }) as HTMLButtonElement;
+      expect(button.disabled).toBe(true);
+      fireEvent.click(button);
+      expect(sent.some((x) => x.url === "/api/team/defaults")).toBe(false); // nothing without the tick
+      fireEvent.click(within(group).getByRole("checkbox"));
+      fireEvent.click(button);
+      await waitFor(() => expect(sent.some((x) => x.url === "/api/team/defaults")).toBe(true));
+      expect(sent.find((x) => x.url === "/api/team/defaults")!.body).toEqual({ confirm: true, person_ids: ["p10", "p11"] });
+      // and the plan is made again so it reflects the new approvals; nothing is deployed
+      await waitFor(() => expect(sent.filter((x) => x.url === "/api/deploy/gmail/plan")).toHaveLength(2));
+      expect(sent.some((x) => x.url === "/api/deploy/gmail/deploy")).toBe(false);
+    });
+
+    it("is not shown when everyone already has an approved signature", async () => {
+      answers["GET /api/deploy/status"] = { body: STATUS_OK };
+      answers["POST /api/deploy/gmail/plan"] = { body: planWith(0) };
+      render(<GmailTab onStarted={() => {}} />);
+      fireEvent.click(await screen.findByRole("button", { name: "Make a plan" }));
+      await screen.findByText("Person 1");
+      expect(screen.queryByRole("group", { name: "People without an approved signature" })).toBeNull();
+    });
+  });
+
   it("filters the plan by what happens to people", async () => {
     answers["GET /api/deploy/status"] = { body: STATUS_OK };
     answers["POST /api/deploy/gmail/plan"] = { body: PLAN };

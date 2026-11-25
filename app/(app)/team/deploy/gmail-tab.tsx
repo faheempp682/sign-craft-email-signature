@@ -41,6 +41,7 @@ export function GmailTab({ onStarted }: { onStarted: (id: string) => void }) {
   const [filter, setFilter] = useState<FilterId>("all");
   const [shown, setShown] = useState(PAGE);
   const [agreed, setAgreed] = useState(false);
+  const [approveOk, setApproveOk] = useState(false);
   const { busy, error, notice, run } = useAction();
 
   useEffect(() => {
@@ -62,6 +63,18 @@ export function GmailTab({ onStarted }: { onStarted: (id: string) => void }) {
     const r = await run("confirm", () => call<{ id: string }>("POST", "/api/deploy/gmail/deploy", { fingerprint: plan.fingerprint, set: plan.counts.set, replace: plan.counts.replace, department: plan.department || undefined, confirmed: true }));
     if (r.ok) onStarted(r.data.id);
     else if (r.status === 409) setPlan(null); // stale: the old plan must not be reused
+  }
+
+  /** People from a directory or CSV who never signed in have no approved signature, so they would be skipped. */
+  const noVersion = useMemo(() => (plan ? plan.items.filter((i) => i.code === "no_version").length : 0), [plan]);
+
+  async function approveDefaults() {
+    if (!plan) return;
+    // Exactly the people this plan lists as having none, never the whole organization.
+    const ids = plan.items.filter((i) => i.code === "no_version").map((i) => i.person_id);
+    const r = await run("approve", () => call<{ created: number; already_approved: number; no_template: number }>("POST", "/api/team/defaults", { confirm: true, person_ids: ids }), "");
+    setApproveOk(false);
+    if (r.ok) await makePlan(); // the plan now includes them
   }
 
   const visible = useMemo(() => (plan ? plan.items.filter((i) => filter === "all" || kindOf(i) === filter) : []), [plan, filter]);
@@ -92,6 +105,23 @@ export function GmailTab({ onStarted }: { onStarted: (id: string) => void }) {
       {plan && (
         <section aria-labelledby="p-h" className="space-y-5">
           <h2 id="p-h" className="text-lg font-semibold">2. Review</h2>
+          {noVersion > 0 && (
+            <div role="group" aria-label="People without an approved signature" className="space-y-3 rounded-lg border border-line p-4 text-sm">
+              <p>
+                <strong className="font-semibold">{plural(noVersion, "person has", "people have")} no approved signature</strong>, so they would be skipped. Only approved signatures are ever deployed.
+              </p>
+              <p className="text-muted">
+                You can approve the brand template&apos;s signature for them, filled from their directory details. This never replaces a signature someone already has approved. It only approves; nothing is sent to Gmail until you confirm the deployment below.
+              </p>
+              <label className="flex min-h-11 cursor-pointer items-start gap-3">
+                <input type="checkbox" className="mt-1 size-5 shrink-0" checked={approveOk} onChange={(e) => setApproveOk(e.target.checked)} />
+                <span>I have checked the brand template and approve it for these {plural(noVersion, "person", "people")}.</span>
+              </label>
+              <button type="button" className="btn min-h-11" disabled={!approveOk || busy !== null} onClick={approveDefaults}>
+                {busy === "approve" ? "Approving…" : "Approve template signatures"}
+              </button>
+            </div>
+          )}
           {plan.blockers.length > 0 && (
             <div role="alert" className="rounded-lg border border-red-600 p-3 text-sm dark:border-red-400">
               <p className="font-semibold">Deployment cannot start</p>
