@@ -14,6 +14,7 @@ import { FolderIcon } from "@solar-icons/react/bold-duotone/folder";
 import { AddCircleIcon } from "@solar-icons/react/bold-duotone/add-circle";
 import { LayersIcon } from "@solar-icons/react/bold-duotone/layers";
 import { DocumentTextIcon } from "@solar-icons/react/bold-duotone/document-text";
+import { BookIcon } from "@solar-icons/react/bold-duotone/book";
 import { signOut } from "@/app/login/actions";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -26,6 +27,7 @@ const ITEMS: Item[] = [
   { href: "/signatures", label: "Signatures", Icon: GalleryIcon },
   { href: "/editor", label: "Editor", Icon: PenNewSquareIcon },
   { href: "/preview", label: "Exporter", Icon: CodeSquareIcon },
+  { href: "/guides", label: "Guides", Icon: BookIcon },
 ];
 
 export function Logo({ className }: { className?: string }) {
@@ -109,6 +111,9 @@ export function Panel() {
       </Link>
       <Link href="/preview" className={row(path.startsWith("/preview"))}>
         <DocumentTextIcon size={18} /> Exporter
+      </Link>
+      <Link href="/guides" className={row(path.startsWith("/guides"))}>
+        <BookIcon size={18} /> Install guides
       </Link>
 
       <p className="mt-6 px-3 pb-2 text-xs font-medium text-muted-foreground">Project</p>

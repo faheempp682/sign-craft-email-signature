@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { SignatureDoc } from "@/lib/schema/document";
 import { mapBlockElements } from "@/lib/editor/preview-map";
+import { CLIENTS, type ClientId } from "@/lib/preview-clients";
 
 export type Snapshot = { html: string; parsed: SignatureDoc; ids: string[] };
 export type PickHint = { text: string; offset: number };
@@ -19,11 +20,13 @@ body{margin:24px}
 export function LivePreview({
   snapshot,
   dark,
+  client,
   selectedId,
   onPick,
 }: {
   snapshot: Snapshot;
   dark: boolean;
+  client: ClientId;
   selectedId: string | null;
   onPick: (id: string, hint: PickHint | null) => void;
 }) {
@@ -57,30 +60,55 @@ export function LivePreview({
     return () => doc.removeEventListener("click", onClick);
   }, [loads]);
 
+  // Signatures are 380-640px wide but the preview pane can be narrower (split editor, mobile). Scale the preview down
+  // to fit instead of letting it scroll sideways. This only affects the preview DOM, never the exported HTML.
+  const fit = () => {
+    const f = frame.current;
+    const doc = f?.contentDocument;
+    if (!f || !doc?.body) return;
+    doc.body.style.zoom = "";
+    const need = doc.documentElement.scrollWidth;
+    const have = f.clientWidth;
+    if (need > have && have > 0) doc.body.style.zoom = String(have / need);
+  };
+  useEffect(() => {
+    const f = frame.current;
+    if (!f || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => fit());
+    ro.observe(f);
+    return () => ro.disconnect();
+  });
+
   // Re-inject whenever the document, background or selection changes.
   useEffect(() => {
     const doc = frame.current?.contentDocument;
     if (!doc || loads === 0) return;
-    doc.body.style.background = dark ? "#1f2937" : "#ffffff";
+    const c = CLIENTS[client];
+    const t = dark ? c.dark : c.light;
+    doc.body.style.cssText = `margin:${c.width ? 14 : 24}px;background:${t.bg};color:${t.ink};font-family:${c.font};font-size:${c.size};`;
     doc.body.innerHTML = snapshot.html;
+    fit();
     const map = mapBlockElements(doc.body, snapshot.parsed, snapshot.ids);
     blockMap.current = map;
     for (const [el, id] of map) {
       el.setAttribute("data-block", id);
       if (id === selectedId) el.setAttribute("data-selected", "");
     }
-  }, [snapshot, dark, selectedId, loads]);
+  }, [snapshot, dark, client, selectedId, loads]);
 
   return (
     // allow-same-origin lets the editor read the DOM for click mapping. Scripts stay disabled, so injected markup can never run code.
+    <div className="bg-surface-2 p-0 sm:p-4">
     <iframe
       ref={frame}
       title="Signature preview"
       srcDoc={SHELL}
       sandbox="allow-same-origin"
       onLoad={() => setLoads((n) => n + 1)}
-      className="h-[460px] w-full bg-white"
+      style={{ width: CLIENTS[client].width ?? "100%" }}
+      className="mx-auto block h-[460px] max-w-full border-line bg-white sm:rounded-lg sm:border"
     />
+    </div>
   );
 }
 

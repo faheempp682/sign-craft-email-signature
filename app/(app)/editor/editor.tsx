@@ -12,8 +12,14 @@ import { BLOCK_LABEL, BLOCK_TYPES, FIELDS, cleanValue, createBlock, type BlockTy
 import { clearDraft, getStorage, loadDraft, saveDraft, type Draft } from "@/lib/editor/draft";
 import { pickFieldKey } from "@/lib/editor/preview-map";
 import { copyHtmlRich, downloadHtm } from "@/lib/export-client";
-import { fitBanner, uploadImage } from "@/lib/editor/upload";
+import { fitBanner, toAssetInfo, uploadImage } from "@/lib/editor/upload";
+import type { AssetInfo } from "@/lib/storage/rules";
 import { LivePreview, type PickHint, type Snapshot } from "./live-preview";
+import { CompatPanel } from "./compat-panel";
+import { AutofillPanel } from "./autofill-panel";
+import type { ApplyResult } from "@/lib/ai/apply-facts";
+import { applyAllFixes, lintDoc, scoreOf, type AssetMap, type Issue } from "@/lib/linter";
+import { CLIENTS, CLIENT_IDS, type ClientId } from "@/lib/preview-clients";
 
 const MAX_BLOCKS = 30;
 const AUTOSAVE_MS = 400;
@@ -48,16 +54,18 @@ function collectErrors(doc: SignatureDoc): Errors {
   return errors;
 }
 
-function Field({ spec, value, error, id, onChange, onUpload }: { spec: FieldSpec; value: unknown; error?: string; id: string; onChange: (v: string) => void; onUpload?: (file: File) => Promise<void> }) {
+function Field({ spec, value, error, id, onChange, onUpload }: { spec: FieldSpec; value: unknown; error?: string; id: string; onChange: (v: string) => void; onUpload?: (file: File) => Promise<string | void> }) {
   const v = value === undefined || value === null ? "" : String(value);
   const [busy, setBusy] = useState(false);
   const [upErr, setUpErr] = useState("");
+  const [upNote, setUpNote] = useState("");
   async function pick(file: File | undefined) {
     if (!file || !onUpload) return;
     setBusy(true);
     setUpErr("");
+    setUpNote("");
     try {
-      await onUpload(file);
+      setUpNote((await onUpload(file)) || "");
     } catch (e) {
       setUpErr(e instanceof Error ? e.message : "The upload failed.");
     } finally {
@@ -84,6 +92,7 @@ function Field({ spec, value, error, id, onChange, onUpload }: { spec: FieldSpec
             <input type="file" accept="image/png,image/jpeg,image/gif" className="sr-only" disabled={busy} onChange={(e) => { void pick(e.target.files?.[0]); e.target.value = ""; }} />
           </label>
           <p role="status" aria-live="polite" className="mt-1.5 min-h-4 text-xs text-red-600 dark:text-red-400">{upErr}</p>
+          {upNote && <p data-testid="upload-note" className="text-xs text-muted">{upNote}</p>}
         </div>
       )}
       {spec.hint && !error && <p className="text-xs text-muted">{spec.hint}</p>}
@@ -95,9 +104,9 @@ function Field({ spec, value, error, id, onChange, onUpload }: { spec: FieldSpec
 /* ---------- one sortable block card ---------- */
 
 function BlockCard({
-  id, index, count, block, errors, isOpen, canUpload, onToggle, onMove, onRemove, onPatch,
+  id, index, count, block, errors, isOpen, canUpload, onAsset, onToggle, onMove, onRemove, onPatch,
 }: {
-  id: string; index: number; count: number; block: Block; errors: Errors; isOpen: boolean; canUpload: boolean;
+  id: string; index: number; count: number; block: Block; errors: Errors; isOpen: boolean; canUpload: boolean; onAsset: (url: string, info: AssetInfo) => void;
   onToggle: () => void; onMove: (dir: -1 | 1) => void; onRemove: () => void; onPatch: (patch: Record<string, unknown>) => void;
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id });
@@ -139,8 +148,10 @@ function BlockCard({
                 onUpload={
                   canUpload && spec.upload
                     ? async (file) => {
-                        const r = await uploadImage(file);
+                        const r = await uploadImage(file, block.type === "banner" ? "banner" : "avatar");
+                        onAsset(r.url, toAssetInfo(r));
                         onPatch({ [spec.key]: r.url, ...(block.type === "banner" ? fitBanner(r.width, r.height) : {}) });
+                        return r.notes.join(" ");
                       }
                     : undefined
                 }
@@ -157,8 +168,8 @@ function BlockCard({
 
 export type SavedSignature = { id: string; name: string; doc: SignatureDoc };
 
-export function Editor({ initial, explicit, aiNotice = false, saved, canSave = false, canUpload = false }: {
-  initial: string; explicit: boolean; aiNotice?: boolean; saved?: SavedSignature; canSave?: boolean; canUpload?: boolean;
+export function Editor({ initial, explicit, aiNotice = false, saved, canSave = false, canUpload = false, assetInfo }: {
+  initial: string; explicit: boolean; aiNotice?: boolean; saved?: SavedSignature; canSave?: boolean; canUpload?: boolean; assetInfo?: AssetMap;
 }) {
   const [showAiNotice, setShowAiNotice] = useState(aiNotice);
   const [ready, setReady] = useState(false); // false until localStorage has been consulted (avoids a hydration flash)
@@ -177,6 +188,9 @@ export function Editor({ initial, explicit, aiNotice = false, saved, canSave = f
   const [focusReq, setFocusReq] = useState<{ id: string; key?: string; n: number } | null>(null);
   const [status, setStatus] = useState("");
   const [dark, setDark] = useState(false);
+  const [client, setClient] = useState<ClientId>("gmail");
+  // What the upload step recorded about each image (size, animation, dimensions). Lives beside the document, never inside it.
+  const [assets, setAssets] = useState<AssetMap>(assetInfo ?? {});
   const [addType, setAddType] = useState<BlockType>("identity");
 
   // Refs are updated synchronously (not in an effect) so the pagehide flush and preview clicks never see stale state.
@@ -241,6 +255,8 @@ export function Editor({ initial, explicit, aiNotice = false, saved, canSave = f
   const [lastValid, setLastValid] = useState<Snapshot | null>(current);
   if (current && current !== lastValid) setLastValid(current);
   const snapshot = current ?? lastValid;
+  // Lint only a fully valid document; while a field is mid-edit and invalid the panel says so instead.
+  const issues = useMemo(() => (current ? lintDoc(current.parsed, assets) : null), [current, assets]);
 
   /* --- click-to-edit: preview click -> open block, focus + select the matching field --- */
   const onPick = useCallback((id: string, hint: PickHint | null) => {
@@ -250,6 +266,17 @@ export function Editor({ initial, explicit, aiNotice = false, saved, canSave = f
     setOpen(id);
     setFocusReq({ id, key: hint ? pickFieldKey(doc.blocks[i], hint.text, hint.offset) : undefined, n: Date.now() });
   }, []);
+
+  const onFix = (issue: Issue) => update((s) => ({ ...s, doc: issue.fix!(s.doc) }));
+  // Autofill may add blocks, so each block's stable id is carried over by its old position and new blocks get fresh ids.
+  const onAutofill = (r: ApplyResult) => update((s) => ({ doc: r.doc, ids: r.order.map((o) => (o === null ? newId() : s.ids[o])) }));
+  const onFixAll = () => update((s) => ({ ...s, doc: applyAllFixes(s.doc, assets) }));
+  const onShowBlock = (index: number) => {
+    const id = stateRef.current.ids[index];
+    if (!id) return;
+    setOpen(id);
+    setFocusReq({ id, n: Date.now() });
+  };
 
   useEffect(() => {
     if (!focusReq) return;
@@ -410,6 +437,8 @@ export function Editor({ initial, explicit, aiNotice = false, saved, canSave = f
           )}
         </section>
 
+        <AutofillPanel doc={doc} onApply={onAutofill} />
+
         <section className="card space-y-4 p-5" aria-label="Template and theme">
           <div className="flex flex-col gap-1.5">
             <label htmlFor="tpl" className="text-sm font-medium">Template layout</label>
@@ -456,6 +485,7 @@ export function Editor({ initial, explicit, aiNotice = false, saved, canSave = f
                     errors={errors}
                     isOpen={open === ids[i]}
                     canUpload={canUpload}
+                    onAsset={(url, info) => setAssets((a) => ({ ...a, [url]: info }))}
                     onToggle={() => setOpen(open === ids[i] ? null : ids[i])}
                     onMove={(dir) => reorder(i, i + dir)}
                     onRemove={() => remove(i)}
@@ -474,6 +504,12 @@ export function Editor({ initial, explicit, aiNotice = false, saved, canSave = f
           </div>
         </section>
 
+        {issues ? (
+          <CompatPanel issues={issues} onFix={onFix} onFixAll={onFixAll} onSelect={onShowBlock} />
+        ) : (
+          <p className="card p-5 text-sm text-muted">Fix the highlighted fields to run the compatibility check.</p>
+        )}
+
         <div className="flex items-center justify-between gap-3 text-sm text-muted">
           <p role="status" aria-live="polite" data-testid="save-note">{saveNote || (localDrafts ? "Edits are saved on this device as you type." : "")}</p>
           <button className="btn" onClick={startOver}>Start over</button>
@@ -483,13 +519,29 @@ export function Editor({ initial, explicit, aiNotice = false, saved, canSave = f
       {/* ---------- live preview ---------- */}
       <div className="lg:sticky lg:top-8 lg:self-start">
         <section className="card overflow-hidden" aria-label="Live preview">
-          <div className="flex items-center justify-between border-b border-line px-4 py-2 text-xs text-muted">
-            <span>{valid ? "Click any text or image to edit it" : "Fix the highlighted fields. Showing last valid version."}</span>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-2 text-xs text-muted">
+            <div role="group" aria-label="Email client" className="flex gap-1">
+              {CLIENT_IDS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  aria-pressed={client === c}
+                  onClick={() => setClient(c)}
+                  className={`min-h-11 rounded-lg px-3 text-sm font-medium transition-colors duration-150 ${client === c ? "bg-accent-soft text-accent" : "text-muted hover:bg-surface-2 hover:text-ink"}`}
+                >
+                  {CLIENTS[c].label}
+                </button>
+              ))}
+            </div>
             <button className="min-h-11 px-2 font-medium text-accent" aria-pressed={dark} onClick={() => setDark((d) => !d)}>
-              {dark ? "Light background" : "Dark background"}
+              {dark ? "Switch to light mode" : "Switch to dark mode"}
             </button>
           </div>
-          <LivePreview snapshot={snapshot} dark={dark} selectedId={open} onPick={onPick} />
+          <LivePreview snapshot={snapshot} dark={dark} client={client} selectedId={open} onPick={onPick} />
+          <p className="border-t border-line px-4 py-2 text-xs text-muted">
+            {valid ? "Click any text or image to edit it." : "Fix the highlighted fields. Showing last valid version."}
+            {issues && <> <a href="#compat-h" className="font-medium text-accent underline underline-offset-4">Compatibility {scoreOf(issues)}/100</a></>}
+          </p>
         </section>
         <div className="mt-4 flex flex-wrap gap-3">
           <button className="btn btn-primary" onClick={onCopy} disabled={!valid}>Copy as rich text</button>

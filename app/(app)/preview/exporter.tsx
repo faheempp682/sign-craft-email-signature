@@ -1,20 +1,24 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { TEMPLATE_IDS, type TemplateId } from "@/lib/schema/document";
 import { renderToEmailHtml } from "@/lib/renderer/email-html";
 import { TEMPLATE_META, getTemplate } from "@/lib/templates";
 import { copyHtmlRich, downloadHtm } from "@/lib/export-client";
+import { CLIENTS, CLIENT_IDS, previewDocument, type ClientId } from "@/lib/preview-clients";
 
 export function Exporter({ initial }: { initial: TemplateId }) {
   const [id, setId] = useState<TemplateId>(initial);
   const [dark, setDark] = useState(false);
+  const [client, setClient] = useState<ClientId>("gmail");
   const [status, setStatus] = useState("");
   const [tab, setTab] = useState<"html" | "json">("html");
 
   const doc = getTemplate(id).doc;
   const html = useMemo(() => renderToEmailHtml(doc), [doc]);
-  const srcDoc = `<!doctype html><html><body style="margin:24px;background:${dark ? "#1f2937" : "#ffffff"};">${html}</body></html>`;
+  const srcDoc = previewDocument(html, client, dark);
+  const frameWidth = CLIENTS[client].width;
 
   async function copyRich() {
     setStatus((await copyHtmlRich(html)) ? "Copied as rich text. Paste it into your email client's signature box." : "The browser blocked clipboard access. Use Download .htm instead.");
@@ -27,11 +31,34 @@ export function Exporter({ initial }: { initial: TemplateId }) {
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
       <section className="card overflow-hidden" aria-label="Preview">
-        <div className="flex items-center justify-between border-b border-line px-4 py-2 text-xs text-muted">
-          <span>{dark ? "Dark background (approximation)" : "Light background"}</span>
-          <span>Exact exporter output</span>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-2 text-xs text-muted">
+          <div role="group" aria-label="Email client" className="flex gap-1">
+            {CLIENT_IDS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                aria-pressed={client === c}
+                onClick={() => setClient(c)}
+                className={`min-h-11 rounded-lg px-3 text-sm font-medium transition-colors duration-150 ${client === c ? "bg-accent-soft text-accent" : "text-muted hover:bg-surface-2 hover:text-ink"}`}
+              >
+                {CLIENTS[c].label}
+              </button>
+            ))}
+          </div>
+          <span>{CLIENTS[client].label} {dark ? "dark" : "light"} · approximation of the message pane</span>
         </div>
-        <iframe title="Signature preview" srcDoc={srcDoc} sandbox="" className="h-[420px] w-full bg-white" />
+        <div className="bg-surface-2 p-0 sm:p-4">
+          <iframe
+            title={`Signature preview, ${CLIENTS[client].label}`}
+            srcDoc={srcDoc}
+            sandbox=""
+            style={{ width: frameWidth ?? "100%" }}
+            className="mx-auto block h-[420px] max-w-full border-line bg-white sm:rounded-lg sm:border"
+          />
+        </div>
+        <p className="border-t border-line px-4 py-2 text-xs text-muted">
+          Not the clients&apos; real rendering engines. Always send yourself a test email. <Link href="/guides" className="font-medium text-accent underline underline-offset-4">Install guides</Link>
+        </p>
       </section>
 
       <aside className="space-y-4">
@@ -45,7 +72,7 @@ export function Exporter({ initial }: { initial: TemplateId }) {
             </select>
           </div>
           <button className="btn w-full" aria-pressed={dark} onClick={() => setDark((d) => !d)}>
-            {dark ? "Use light background" : "Use dark background"}
+            {dark ? "Switch to light mode" : "Switch to dark mode"}
           </button>
           <button className="btn btn-primary w-full" onClick={copyRich}>Copy as rich text</button>
           <button className="btn w-full" onClick={download}>Download .htm</button>

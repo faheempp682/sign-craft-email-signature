@@ -4,6 +4,7 @@ import { getPreset } from "@/lib/presets";
 import { SignatureDocSchema } from "@/lib/schema/document";
 import { createClient, getUser } from "@/lib/supabase/server";
 import { getBunnyConfig } from "@/lib/storage/bunny";
+import type { AssetMap } from "@/lib/linter";
 import { Editor, type SavedSignature } from "./editor";
 
 export const metadata = { title: "Editor · SignCraft" };
@@ -17,6 +18,22 @@ async function loadSaved(id: string): Promise<SavedSignature | null> {
   if (!data) return null;
   const doc = SignatureDocSchema.safeParse(data.doc_json);
   return doc.success ? { id: data.id, name: data.name, doc: doc.data } : null;
+}
+
+/** Upload facts for the images in a saved signature, so the compatibility check still knows their size on later visits. */
+async function loadAssetInfo(saved: SavedSignature | null): Promise<AssetMap> {
+  if (!saved) return {};
+  const urls = saved.doc.blocks.flatMap((b) => (b.type === "avatar" || b.type === "banner" ? [b.src] : []));
+  if (urls.length === 0) return {};
+  const supabase = await createClient();
+  if (!supabase) return {};
+  const { data } = await supabase.from("assets").select("url, type, size, width, height, animated, original_size").in("url", urls);
+  const map: AssetMap = {};
+  for (const r of data ?? []) {
+    if (r.type !== "image/png" && r.type !== "image/jpeg" && r.type !== "image/gif") continue;
+    map[r.url] = { type: r.type, bytes: r.size, width: r.width ?? 0, height: r.height ?? 0, animated: !!r.animated, originalBytes: r.original_size ?? undefined };
+  }
+  return map;
 }
 
 export default async function EditorPage({ searchParams }: { searchParams: Promise<{ t?: string; from?: string; s?: string }> }) {
@@ -43,6 +60,7 @@ export default async function EditorPage({ searchParams }: { searchParams: Promi
         saved={saved ?? undefined}
         canSave={!!user}
         canUpload={!!user && !!getBunnyConfig()}
+        assetInfo={await loadAssetInfo(saved)}
       />
     </>
   );
