@@ -2,6 +2,7 @@ import Link from "next/link";
 import { PRESETS } from "@/lib/presets";
 import { SignatureDocSchema } from "@/lib/schema/document";
 import { createClient, getUser } from "@/lib/supabase/server";
+import { getSignatureUsage } from "@/lib/signature-usage";
 import { Gallery } from "./gallery";
 import { MySignatures, type MySignature } from "./my-signatures";
 
@@ -30,7 +31,7 @@ async function loadMine(): Promise<MySignature[] | null> {
 }
 
 export default async function SignaturesPage() {
-  const mine = await loadMine();
+  const [mine, usage] = await Promise.all([loadMine(), getSignatureUsage()]);
   return (
     <>
       <header className="mb-10 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
@@ -44,7 +45,7 @@ export default async function SignaturesPage() {
         </Link>
       </header>
 
-      {mine && <MySignatures items={mine} />}
+      {mine && <MySignatures items={mine} limit={usage?.limit} />}
 
       <dl className="card mb-10 grid grid-cols-3 divide-x divide-line">
         {STATS.map((s) => (

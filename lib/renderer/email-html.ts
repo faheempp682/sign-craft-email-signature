@@ -1,6 +1,7 @@
 import type { Block, SignatureDoc, Theme } from "@/lib/schema/document";
 import { GAP, TABLE_ATTRS, esc, fontStack, renderBlock, safeHttpsUrl, withTracking, type Ctx, type TrackOptions } from "./shared";
 import { isCardTemplate, renderCardBlock, renderCardTemplate } from "./cards";
+import { STACK_CSS, STACK_MARK } from "./row";
 
 export { esc, safeHttpsUrl, renderBlock };
 
@@ -67,7 +68,7 @@ export type RenderOptions = {
 
 /** Deterministic JSON -> Outlook-safe table HTML. Validate `doc` with SignatureDocSchema before calling. */
 export function renderToEmailHtml(doc: SignatureDoc, options?: RenderOptions): string {
-  return withTracking(options?.tracking, () => {
+  const html = withTracking(options?.tracking, () => {
     switch (doc.template_id) {
       case "classic":
         return layoutClassic(doc);
@@ -79,4 +80,6 @@ export function renderToEmailHtml(doc: SignatureDoc, options?: RenderOptions): s
         return renderCardTemplate(doc);
     }
   });
+  // Only output that contains a stacking column gets the media query, so every existing signature exports byte-for-byte as before.
+  return html.includes(STACK_MARK) ? STACK_CSS + html : html;
 }

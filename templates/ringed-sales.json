@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "template_id": "ringed-sales",
+  "theme": { "primary": "#1F4E9C", "text": "#1F2937", "muted": "#4B5563", "bg": "#FFFFFF", "accent2": "#F97316", "font": "Arial", "spacing": "normal" },
+  "blocks": [
+    { "type": "avatar", "src": "https://placehold.co/320x320.png", "alt": "Marcus Chen", "shape": "circle", "size": 150 },
+    { "type": "identity", "name": "Marcus Chen", "title": "Enterprise Account Executive", "company": "Orion Software" },
+    { "type": "text", "text": "Territory: Northeast US & Canada", "variant": "body" },
+    { "type": "contact", "phone": "+1 (617) 702-5511", "email": "m.chen@orionsoftware.com", "website": "www.orionsoftware.com" },
+    { "type": "button", "label": "SCHEDULE A CALL: 30-min intro / demo", "href": "https://orionsoftware.com/schedule" },
+    { "type": "banner", "src": "https://placehold.co/320x56.png", "alt": "Salesforce Partner and HubSpot Certified", "width": 320, "height": 56 }
+  ]
+}

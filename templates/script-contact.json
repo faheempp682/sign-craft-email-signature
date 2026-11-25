@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "template_id": "script-contact",
+  "theme": { "primary": "#333333", "text": "#2B2B2B", "muted": "#666666", "bg": "#FFFFFF", "accent2": "#333333", "font": "Verdana", "spacing": "normal" },
+  "blocks": [
+    { "type": "avatar", "src": "https://placehold.co/290x290.png", "alt": "Juliana Silva", "shape": "circle", "size": 145 },
+    { "type": "identity", "name": "Juliana Silva" },
+    { "type": "contact", "phone": "123-456-7890", "email": "hello@reallygreatsite.com", "website": "reallygreatsite.com", "address": "123 Anywhere St., Any City" }
+  ]
+}

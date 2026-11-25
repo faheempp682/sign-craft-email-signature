@@ -21,7 +21,8 @@ function UpdatedDate({ iso }: { iso: string }) {
   return <time dateTime={iso}>{fmt(iso, local ? undefined : "UTC")}</time>;
 }
 
-export function MySignatures({ items }: { items: MySignature[] }) {
+export function MySignatures({ items, limit }: { items: MySignature[]; limit?: number }) {
+  const full = limit !== undefined && items.length >= limit;
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -47,13 +48,20 @@ export function MySignatures({ items }: { items: MySignature[] }) {
 
   return (
     <section aria-labelledby="mine-h" className="mb-12">
-      <h2 id="mine-h" className="mb-5 text-lg font-semibold">
-        My signatures <span className="text-muted">({items.length})</span>
-      </h2>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <h2 id="mine-h" className="text-lg font-semibold">
+          My signatures <span className="text-muted">({limit === undefined ? items.length : `${items.length} of ${limit}`})</span>
+        </h2>
+        {full ? (
+          <p className="text-sm text-muted">You have reached the limit. Delete one to create another.</p>
+        ) : (
+          <Link href="/create" className="btn btn-primary">New signature</Link>
+        )}
+      </div>
       <p role="alert" className="mb-3 min-h-5 text-sm text-red-600 dark:text-red-400">{error}</p>
       {items.length === 0 ? (
         <div className="card p-6 text-sm text-muted">
-          Nothing saved yet. Pick a template below, edit it, and press <strong className="text-ink">Save signature</strong>.
+          Nothing saved yet. Press <strong className="text-ink">New signature</strong> to pick a template and make your first one.
         </div>
       ) : (
         <ul className="grid gap-5 md:grid-cols-2">

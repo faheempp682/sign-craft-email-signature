@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "template_id": "talent-card",
+  "theme": {
+    "primary": "#2F6FDB",
+    "text": "#111827",
+    "muted": "#5B6577",
+    "bg": "#FFFFFF",
+    "accent2": "#00B67A",
+    "font": "Arial",
+    "spacing": "normal"
+  },
+  "blocks": [
+    {
+      "type": "avatar",
+      "src": "https://placehold.co/280x440.png",
+      "alt": "Gianna Reina",
+      "shape": "square",
+      "size": 138,
+      "height": 238
+    },
+    {
+      "type": "identity",
+      "name": "Gianna Reina",
+      "title": "Head of Talent",
+      "company": "Tandem Bridge Talent"
+    },
+    {
+      "type": "contact",
+      "phone": "213-938-3608",
+      "email": "gianna@tandembridge.com",
+      "website": "tandembridge.com"
+    },
+    {
+      "type": "social",
+      "links": [
+        { "network": "linkedin", "url": "https://linkedin.com/in/yourname" },
+        { "network": "instagram", "url": "https://instagram.com/yourname" },
+        { "network": "tiktok", "url": "https://tiktok.com/@yourname" },
+        { "network": "youtube", "url": "https://youtube.com/@yourname" },
+        { "network": "twitter", "url": "https://x.com/yourname" },
+        { "network": "facebook", "url": "https://facebook.com/yourname" }
+      ]
+    },
+    {
+      "type": "button",
+      "label": "Reviews on Trustpilot",
+      "href": "https://www.trustpilot.com/review/tandembridge.com"
+    },
+    {
+      "type": "text",
+      "text": "Our test: would you make the same hire again?",
+      "variant": "body"
+    },
+    {
+      "type": "disclaimer",
+      "text": "CONFIDENTIAL: This email and any attachments are intended only for the person or company it is addressed to and may contain private or privileged information. If you are not the intended recipient, please delete it and let the sender know. Sharing, copying or forwarding any part of this message is strictly prohibited."
+    }
+  ]
+}

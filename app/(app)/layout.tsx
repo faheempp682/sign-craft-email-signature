@@ -1,40 +1,49 @@
-import { BottomNav, Panel, Rail, Topbar } from "@/components/nav";
-import { currentRole, featureEnabled } from "@/lib/authz/guard";
-import { atLeast } from "@/lib/authz/roles";
-import { createClient } from "@/lib/supabase/server";
-import type { NavExtra } from "@/components/nav";
-import { getUser } from "@/lib/supabase/server";
+import { BottomNav, Footer, Sidebar, Topbar } from "@/components/nav";
+import { OrgSwitcher } from "@/components/org-switcher";
+import { currentRole, featureEnabled, isPlatformAdmin } from "@/lib/authz/guard";
+import type { Feature } from "@/lib/authz/roles";
+import { buildMenu, type MenuInput } from "@/lib/nav/menu";
+import { createClient, getUser } from "@/lib/supabase/server";
+
+const NAV_FEATURES: Feature[] = ["digital_card", "designer_polish", "team_deploy", "directory_sync", "crm_sync", "health_monitor", "agency_mode"];
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getUser();
   const role = user ? await currentRole() : null;
   const isAdmin = role === "admin";
-  // Links appear only for features this person can actually use (the pages and APIs enforce it again).
-  const extras: NavExtra[] = [];
   const supabase = user ? await createClient() : null;
+
+  // Links appear only for what this person can actually use (the pages and APIs enforce it again).
+  const flags: MenuInput["flags"] = {};
+  let attention = 0;
+  let platform = false;
   if (supabase) {
-    const [cards, polish, team] = await Promise.all([featureEnabled(supabase, "digital_card"), featureEnabled(supabase, "designer_polish"), isAdmin ? featureEnabled(supabase, "team_deploy") : Promise.resolve(false)]);
-    // Admins manage the team; everyone else edits their own brand-locked signature.
-    let attention = 0;
-    if (isAdmin && team === true && (await featureEnabled(supabase, "health_monitor")) === true) {
-      // Open signature-health findings (someone edited or removed a deployed signature). Admin-only rows under row-level security.
-      const { count } = await supabase.from("health_findings").select("id", { count: "exact", head: true }).eq("status", "open");
-      attention = count ?? 0;
+    const values = await Promise.all(NAV_FEATURES.map((f) => featureEnabled(supabase, f)));
+    NAV_FEATURES.forEach((f, i) => (flags[f] = values[i]));
+    if (isAdmin) {
+      platform = await isPlatformAdmin();
+      if (flags.team_deploy === true && flags.health_monitor === true) {
+        // Open signature-health findings (someone edited or removed a deployed signature). Admin-only rows under row-level security.
+        const { count } = await supabase.from("health_findings").select("id", { count: "exact", head: true }).eq("status", "open");
+        attention = count ?? 0;
+      }
     }
-    extras.push(isAdmin && team === true ? { href: "/team", label: "Team", icon: "team", badge: attention } : { href: "/team/mine", label: "My team signature", icon: "team" });
-    if (cards === true) extras.push({ href: "/cards", label: "Digital card", icon: "cards" });
-    if ((role && atLeast(role, "designer")) || polish === true) extras.push({ href: "/polish", label: "Polish", icon: "polish" });
   }
+  const groups = buildMenu({ role, platform, flags, attention });
+
   return (
-    <div className="min-h-screen bg-background">
-      <Rail email={user?.email} isAdmin={isAdmin} extras={extras} />
-      <Panel isAdmin={isAdmin} extras={extras} />
+    <div className="app-frame min-h-screen bg-background md:min-h-0 md:fixed md:inset-0 md:overflow-hidden">
+      <Sidebar email={user?.email} role={role} groups={groups} canInvite={platform} switcher={isAdmin ? <OrgSwitcher /> : undefined} />
       {/* No `w-full` here: with the sidebar's left margin it made <main> wider than the viewport. */}
-      <div className="md:ml-14 lg:ml-[17.5rem]">
-        <Topbar email={user?.email} isAdmin={isAdmin} extras={extras} />
-        <main className="px-4 pb-24 pt-8 md:px-10 md:pb-12 md:pt-10">
-          <div className="mx-auto max-w-5xl">{children}</div>
-        </main>
+      <div className="flex min-h-screen flex-col md:min-h-0 bg-background md:my-4 md:ml-[4.75rem] md:mr-4 md:h-[calc(100%-2rem)] md:overflow-hidden md:rounded-[28px] md:shadow-xl lg:ml-[4.75rem] lg:exp:ml-60">
+        <Topbar email={user?.email} groups={groups} />
+        {/* On desktop only this region scrolls; the frame, sidebar and top bar stay put. */}
+        <div className="flex min-h-0 flex-1 flex-col md:overflow-y-auto">
+          <main className="flex-1 px-4 pb-24 pt-6 md:px-8 md:pb-12 md:pt-8">
+            <div className="mx-auto max-w-6xl">{children}</div>
+          </main>
+          <Footer />
+        </div>
       </div>
       <BottomNav />
     </div>

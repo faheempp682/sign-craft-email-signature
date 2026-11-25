@@ -109,7 +109,7 @@ describe("Create: from a screenshot", () => {
 
   it("accepts a dropped file", async () => {
     render(<CreateForm />);
-    const card = screen.getByLabelText("Describe your signature").closest("div[class*='rounded-2xl']")!;
+    const card = screen.getByLabelText("Describe your signature").closest("[data-dropzone]")!;
     fireEvent.drop(card, { dataTransfer: { files: [shot("dropped.png")], types: ["Files"] } });
     await waitFor(() => expect(calls).toHaveLength(1));
     expect((formOf(calls[0]).get("file") as File).name).toBe("dropped.png");

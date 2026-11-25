@@ -1,7 +1,38 @@
-import { CreateForm } from "./create-form";
+import Link from "next/link";
+import { getSignatureUsage } from "@/lib/signature-usage";
+import { Gallery } from "../signatures/gallery";
 
-export const metadata = { title: "Create · SignCraft" };
+export const metadata = { title: "Choose a template · SignCraft" };
+export const dynamic = "force-dynamic";
 
-export default function CreatePage() {
-  return <CreateForm />;
+/** First screen for a new customer: pick a template. The AI route is a button, not the starting point. */
+export default async function CreatePage() {
+  const usage = await getSignatureUsage();
+  if (usage?.full) {
+    // Everything after this screen ends in a save that would be refused, so say so before they spend time on it.
+    return (
+      <div className="mx-auto max-w-xl py-10">
+        <p className="eyebrow mb-2">New signature</p>
+        <h1 className="text-3xl font-semibold tracking-tight">You have {usage.count} of {usage.limit} signatures.</h1>
+        <p className="mt-3 text-muted">That is the most one account can keep. Delete a signature you no longer use, then come back to create a new one, or edit one you already have.</p>
+        <Link href="/signatures" className="btn btn-primary mt-6 inline-flex">Manage my signatures</Link>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <header className="mb-8 flex flex-wrap items-start justify-between gap-4">
+        <div className="max-w-xl">
+          <p className="eyebrow mb-2">Step 1 of 3</p>
+          <h1 className="text-3xl font-semibold tracking-tight">Choose a template.</h1>
+          <p className="mt-3 text-muted">Pick the look you like. Next we will ask a few questions and fill it in with your details, so you can see it as your own.</p>
+          {usage && <p className="mt-2 text-sm text-muted">You have {usage.count} of {usage.limit} signatures saved.</p>}
+        </div>
+        <Link href="/create/customize" className="btn shrink-0">
+          Customize template
+        </Link>
+      </header>
+      <Gallery pickPath="/create/details" pickLabel="Choose" />
+    </div>
+  );
 }

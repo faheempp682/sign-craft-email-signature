@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { requireUser } from "@/lib/authz/guard";
 import { SignatureDocSchema } from "@/lib/schema/document";
+import { getSignatureLimit } from "@/lib/signature-limit";
 
 export const runtime = "nodejs";
 
-const MAX_SIGNATURES_PER_USER = 100;
 
 const SaveSchema = z.object({
   id: z.string().uuid().optional(),
@@ -42,7 +42,8 @@ export async function POST(req: Request) {
   }
 
   const { count } = await supabase.from("signatures").select("id", { count: "exact", head: true }).eq("owner_id", g.ctx.user.id); // own rows only: org admins can also read tagged signatures of others
-  if ((count ?? 0) >= MAX_SIGNATURES_PER_USER) return json({ error: "quota", message: `You have reached the limit of ${MAX_SIGNATURES_PER_USER} saved signatures.` }, 429);
+  const limit = await getSignatureLimit(supabase);
+  if ((count ?? 0) >= limit) return json({ error: "quota", limit, message: `You have reached the limit of ${limit} saved signatures. Delete one to save another.` }, 429);
 
   const { data, error } = await supabase.from("signatures").insert(row).select("id, name, updated_at").single();
   if (error) return json({ error: "db", message: "Could not save. Please try again." }, 500);

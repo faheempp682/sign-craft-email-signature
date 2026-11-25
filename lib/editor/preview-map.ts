@@ -74,7 +74,7 @@ export function mapBlockElements(root: ParentNode, doc: SignatureDoc, ids: strin
  * so a "Title · Company" line resolves to the right half. Falls back to the block's first field.
  */
 export function pickFieldKey(block: Block, text: string, offset = 0): string | undefined {
-  if (block.type === "social" || block.type === "divider") return undefined;
+  if (block.type === "social" || block.type === "divider" || block.type === "spacer" || block.type === "row") return undefined;
   const specs = FIELDS[block.type];
   const hay = text.toLowerCase();
   if (!hay.trim()) return specs[0]?.key;

@@ -1,4 +1,6 @@
 import type { Block, Theme } from "@/lib/schema/document";
+import { applyBlockStyle } from "./block-style";
+import { renderRow } from "./row";
 
 /* ---------- escaping / sanitising (all user text passes through these) ---------- */
 
@@ -92,8 +94,48 @@ export const NETWORK_LABEL: Record<string, string> = {
   tiktok: "TikTok",
 };
 
-// Text links for now: icon PNGs need hosted URLs, which arrive with the image-upload step.
-function renderSocial(b: Extract<Block, { type: "social" }>, { theme }: Ctx): string {
+/** Hosted PNG badges (brand colour, white glyph) on Bunny; built by scripts/build-social-icons.mjs. */
+export const SOCIAL_ICON_BASE = (process.env.NEXT_PUBLIC_SOCIAL_ICON_BASE || "https://sign-craft.b-cdn.net/social-icons/v1").replace(/\/+$/, "");
+
+/** badge = full-colour round icon; glyph = white glyph on transparent; knock = 88% white tile with the glyph cut out (both sit on a coloured cell). */
+export function socialIconUrl(network: string, variant: "badge" | "glyph" | "knock" = "badge"): string {
+  return `${SOCIAL_ICON_BASE}/${variant === "badge" ? "" : `${variant}/`}${network}.png`;
+}
+
+type SocialBlock = Extract<Block, { type: "social" }>;
+
+/**
+ * Social links in the client's chosen display: icon only, icon + name, or name only.
+ * `dir: "col"` stacks them (for side strips); `size` is the icon edge in px.
+ */
+export function socialDisplay(
+  b: SocialBlock,
+  theme: Pick<Theme, "text">,
+  o: { size?: number; gap?: number; dir?: "row" | "col"; fs?: number; color?: string } = {},
+): string {
+  if (!b.links.length) return "";
+  const mode = b.display ?? "text";
+  const size = o.size ?? 24;
+  const gap = o.gap ?? 8;
+  const fs = o.fs ?? 12;
+  const color = o.color ?? theme.text;
+  const cell = (l: SocialBlock["links"][number]) => {
+    const label = NETWORK_LABEL[l.network] ?? l.network;
+    const href = esc(l.url);
+    const icon = `<a href="${href}" target="_blank" style="text-decoration:none;"><img src="${esc(l.icon ?? socialIconUrl(l.network))}" width="${size}" height="${size}" alt="${esc(label)}" style="display:block;border:0;width:${size}px;height:${size}px;" /></a>`;
+    const text = `<a href="${href}" target="_blank" style="color:${color};text-decoration:none;font-size:${fs}px;line-height:${size}px;font-weight:bold;">${esc(label)}</a>`;
+    if (mode === "icon") return icon;
+    if (mode === "text") return text;
+    return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;"><tr><td valign="middle" width="${size}" style="width:${size}px;">${icon}</td><td valign="middle" style="padding-left:6px;">${text}</td></tr></table>`;
+  };
+  const wrap = (inner: string) => `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">${inner}</table>`;
+  const sepRow = `<td width="${gap}" style="width:${gap}px;font-size:1px;line-height:1px;">&nbsp;</td>`;
+  if (o.dir === "col") return wrap(b.links.map((l, i) => `${i ? `<tr><td height="${gap}" style="height:${gap}px;font-size:1px;line-height:1px;">&nbsp;</td></tr>` : ""}<tr><td valign="middle">${cell(l)}</td></tr>`).join(""));
+  return wrap(`<tr>${b.links.map((l, i) => `${i ? sepRow : ""}<td valign="middle">${cell(l)}</td>`).join("")}</tr>`);
+}
+
+function renderSocial(b: SocialBlock, { theme }: Ctx): string {
+  if (b.display) return socialDisplay(b, theme);
   const items = b.links.map((l) => link(l.url, NETWORK_LABEL[l.network] ?? l.network, theme, "font-weight:bold;"));
   if (!items.length) return "";
   return `<div style="font-size:12px;line-height:18px;">${items.join(` <span style="color:${theme.muted};">|</span> `)}</div>`;
@@ -141,7 +183,29 @@ function renderDisclaimer(b: Extract<Block, { type: "disclaimer" }>, { theme }: 
   return `<div style="font-size:11px;line-height:15px;color:${theme.muted};max-width:500px;">${esc(b.text)}</div>`;
 }
 
-export function renderBlock(b: Block, ctx: Ctx): string {
+function renderText(b: Extract<Block, { type: "text" }>, { theme }: Ctx): string {
+  if (!b.text) return "";
+  const body = b.text.split(/\r?\n/).map(esc).join("<br />");
+  return b.variant === "heading"
+    ? `<div style="font-size:18px;font-weight:bold;line-height:24px;color:${theme.text};">${body}</div>`
+    : `<div style="font-size:13px;line-height:20px;color:${theme.text};">${body}</div>`;
+}
+
+function renderButton(b: Extract<Block, { type: "button" }>, { theme }: Ctx): string {
+  const s = b.style;
+  const bg = s?.bg ?? s?.gradient?.from ?? theme.primary;
+  const fg = s?.color ?? "#FFFFFF";
+  const radius = s?.borderRadius ?? 6;
+  const border = s?.borderWidth ? `border:${s.borderWidth}px solid ${s.borderColor ?? bg};` : "";
+  const size = s?.fontSize ?? 13;
+  return `<table ${TABLE_ATTRS}><tr><td bgcolor="${bg}" style="background-color:${bg};border-radius:${radius}px;${border}padding:8px 16px;"><a href="${esc(b.href)}" target="_blank" style="display:inline-block;color:${fg};font-size:${size}px;font-weight:bold;line-height:${size + 5}px;text-decoration:none;">${esc(b.label)}</a></td></tr></table>`;
+}
+
+function renderSpacer(b: Extract<Block, { type: "spacer" }>): string {
+  return `<table ${TABLE_ATTRS}><tr><td height="${b.height}" style="height:${b.height}px;line-height:${b.height}px;font-size:1px;">&nbsp;</td></tr></table>`;
+}
+
+function renderBlockBase(b: Block, ctx: Ctx): string {
   switch (b.type) {
     case "avatar":
       return renderAvatar(b);
@@ -157,5 +221,19 @@ export function renderBlock(b: Block, ctx: Ctx): string {
       return renderDivider(ctx);
     case "disclaimer":
       return renderDisclaimer(b, ctx);
+    case "text":
+      return renderText(b, ctx);
+    case "button":
+      return renderButton(b, ctx);
+    case "spacer":
+      return renderSpacer(b);
+    case "row":
+      // Children render through renderBlock, so every block (and nested row) works inside a column.
+      return renderRow(b, (child) => renderBlock(child, ctx), GAP[ctx.theme.spacing]);
   }
+}
+
+/** Block HTML with the block's own design applied. Hidden blocks render nothing. */
+export function renderBlock(b: Block, ctx: Ctx): string {
+  return applyBlockStyle(b, renderBlockBase(b, ctx), ctx.theme);
 }

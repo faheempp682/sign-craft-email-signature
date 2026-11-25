@@ -40,6 +40,8 @@ before(async () => {
   for (let attempt = 0; attempt < 5 && !engines.length; attempt++) {
     const res = await page.goto(`${BASE}/editor?t=classic`, { waitUntil: "load" }).catch(() => null);
     assert.ok(attempt < 4 || res?.ok(), `Dev server not reachable at ${BASE}. Start it with "npm run dev" or set E2E_BASE_URL.`);
+    // The template list lives in the Form view.
+    await page.click('[aria-label="Editor view"] button:has-text("Form")', { timeout: 20000 }).catch(() => {});
     engines = await page
       .waitForSelector("select#tpl option", { state: "attached", timeout: 20000 })
       .then(() => page.$$eval("select#tpl option", (os) => os.map((o) => o.value)))
@@ -55,13 +57,15 @@ after(async () => {
 });
 
 test("every template: all blocks are clickable in the preview and selectable", async () => {
-  assert.ok(ids.length >= 121, `expected 121 templates, found ${ids.length}`);
+  assert.ok(ids.length >= 125, `expected 125 templates, found ${ids.length}`);
   const failures = [];
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   for (const id of ids) {
     const page = await ctx.newPage();
     try {
       await page.goto(`${BASE}/editor?t=${id}`, { waitUntil: "domcontentloaded" });
+      await page.waitForSelector('[aria-label="Editor view"]', { timeout: 20000 });
+      await page.click('[aria-label="Editor view"] button:has-text("Form")'); // the block list lives in the Form view
       await page.waitForFunction(() => document.querySelector("iframe")?.contentDocument?.body?.querySelector("table"), null, { timeout: 20000 });
       await page.waitForFunction(() => document.querySelector("iframe").contentDocument.querySelector("[data-block]"), null, { timeout: 5000 }).catch(() => {});
 

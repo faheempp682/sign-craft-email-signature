@@ -28,13 +28,13 @@ describe("presets", () => {
     expect(new Set(studio.map((p) => skeleton(renderToEmailHtml(p.doc)))).size).toBeGreaterThanOrEqual(95);
   });
 
-  it("keeps every template id and puts each one in exactly one collection (40 / 50 / 31)", () => {
-    const hand = ["classic", "modern-split", "minimal", "editorial-arch", "bold-letter", "circle-accent", "green-sidebar", "maroon-frame", "spectrum", "geometric", "noir-agent", "orange-logo", "ticket", "listing-banner", "soft-card", "consultant-blue", "executive-navy", "minimal-line", "dark-luxe", "pastel-pill", "split-color"];
+  it("keeps every template id and puts each one in exactly one collection (44 / 50 / 31)", () => {
+    const hand = ["classic", "modern-split", "minimal", "editorial-arch", "bold-letter", "circle-accent", "green-sidebar", "maroon-frame", "spectrum", "geometric", "noir-agent", "orange-logo", "ticket", "listing-banner", "soft-card", "consultant-blue", "executive-navy", "minimal-line", "dark-luxe", "pastel-pill", "split-color", "talent-card", "mountain-logo", "script-contact", "ringed-sales"];
     const ids = new Set(PRESETS.map((p) => p.id));
     for (const id of [...hand, ...Array.from({ length: 100 }, (_, i) => `studio-${String(i + 1).padStart(3, "0")}`)]) expect(ids.has(id), id).toBe(true);
-    expect(PRESETS.length).toBe(121);
+    expect(PRESETS.length).toBe(125);
     const count = (c: string) => PRESETS.filter((p) => p.collection === c).length;
-    expect(COLLECTIONS.map(count)).toEqual([40, 50, 31]);
+    expect(COLLECTIONS.map(count)).toEqual([44, 50, 31]);
     expect(DEFAULT_COLLECTION).toBe("Essentials");
   });
 });

@@ -20,6 +20,10 @@ import minimal_line from "@/templates/minimal-line.json";
 import dark_luxe from "@/templates/dark-luxe.json";
 import pastel_pill from "@/templates/pastel-pill.json";
 import split_color from "@/templates/split-color.json";
+import talent_card from "@/templates/talent-card.json";
+import mountain_logo from "@/templates/mountain-logo.json";
+import script_contact from "@/templates/script-contact.json";
+import ringed_sales from "@/templates/ringed-sales.json";
 import studio from "@/templates/studio.json";
 
 export const TEMPLATE_META: { id: TemplateId; name: string; blurb: string; doc: SignatureDoc }[] = [
@@ -44,6 +48,10 @@ export const TEMPLATE_META: { id: TemplateId; name: string; blurb: string; doc: 
   { id: "dark-luxe", name: "Dark luxe", blurb: "Black card, gold hairlines, serif caps name.", doc: SignatureDocSchema.parse(dark_luxe) },
   { id: "pastel-pill", name: "Pastel pill", blurb: "Soft tinted card, ringed portrait, title pill.", doc: SignatureDocSchema.parse(pastel_pill) },
   { id: "split-color", name: "Split colour", blurb: "Solid colour panel beside clean contact details.", doc: SignatureDocSchema.parse(split_color) },
+  { id: "talent-card", name: "Talent card", blurb: "Full-height photo, blue title, soft social circles, Trustpilot pill and a confidentiality note.", doc: SignatureDocSchema.parse(talent_card) },
+  { id: "mountain-logo", name: "Mountain logo", blurb: "Logo, name and brand-coloured socials beside a divider and labelled contact lines.", doc: SignatureDocSchema.parse(mountain_logo) },
+  { id: "script-contact", name: "Script contact", blurb: "Round photo, handwritten name and icon contact lines on white.", doc: SignatureDocSchema.parse(script_contact) },
+  { id: "ringed-sales", name: "Ringed sales", blurb: "Ringed portrait, labelled contacts, call button and partner badges.", doc: SignatureDocSchema.parse(ringed_sales) },
   { id: "studio", name: "Studio (composed)", blurb: "100 composed designs. Pick one from the library.", doc: SignatureDocSchema.parse(studio) },
 ];
 

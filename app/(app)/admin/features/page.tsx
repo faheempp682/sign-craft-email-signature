@@ -1,3 +1,5 @@
+import { notFound } from "next/navigation";
+import { isPlatformAdmin } from "@/lib/authz/guard";
 import { FEATURES, ROLES, isFeature, isRole, type Feature, type Role } from "@/lib/authz/roles";
 import { createClient } from "@/lib/supabase/server";
 import { FeaturesAdmin, type FlagRow, type OrgRow, type OverrideRow } from "./features-admin";
@@ -6,6 +8,7 @@ export const metadata = { title: "Features · Admin · SignCraft" };
 export const dynamic = "force-dynamic";
 
 export default async function FeaturesPage() {
+  if (!(await isPlatformAdmin())) notFound(); // platform settings: admins of the default organization only
   const supabase = await createClient();
   if (!supabase) return null;
 

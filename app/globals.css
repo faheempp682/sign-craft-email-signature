@@ -2,33 +2,46 @@
 
 /* Semantic design tokens. Neutral surfaces, one accent, generous whitespace. */
 :root {
-  --bg: #f7f7f6;
+  --bg: #f8f3f0;
   --surface: #ffffff;
-  --surface-2: #f0f0ef;
-  --border: #e6e6e4;
-  --ink: #111111;
-  --muted: #666660; /* >5.5:1 on --bg */
-  --accent: #111111;
+  --surface-2: #f0e7e2;
+  --border: #eadfd9;
+  --ink: #171e2b;
+  --muted: #646a78; /* >5:1 on --bg */
+  --accent: #171e2b;
   --accent-ink: #ffffff;
-  --accent-soft: #ececea;
-  --ring: #111111;
-  --brand: #f0522d;
+  --accent-soft: #f3e2db;
+  --ring: #c58f7a;
+  --brand: #171e2b;
+  --scallop: #ddb3a3;
+  --frame: linear-gradient(140deg, #2a3446 0%, #171e2b 50%, #0c1019 100%);
+  --shadow-card: 0 1px 2px rgb(23 30 43 / 0.04), 0 8px 24px -8px rgb(23 30 43 / 0.12);
+  --radius-card: 20px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0d0d0d;
-    --surface: #151515;
-    --surface-2: #1d1d1d;
-    --border: #2a2a2a;
-    --ink: #f5f5f4;
-    --muted: #a3a3a0;
-    --accent: #f5f5f4;
-    --accent-ink: #111111;
-    --accent-soft: #262626;
-    --ring: #f5f5f4;
+    --bg: #111722;
+    --surface: #171e2b;
+    --surface-2: #222b3b;
+    --border: #2c3648;
+    --ink: #f6eeea;
+    --muted: #a7aebd;
+    --accent: #ddb3a3;
+    --accent-ink: #171e2b;
+    --accent-soft: #2a3040;
+    --ring: #ddb3a3;
+    --brand: #ddb3a3;
+    --frame: linear-gradient(140deg, #222b3d 0%, #121824 55%, #070a10 100%);
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -8px rgb(0 0 0 / 0.5);
   }
 }
+
+/* "exp:" applies unless the user collapsed the sidebar (set on <html> before paint). */
+@custom-variant exp (&:where(html:not([data-sidebar="collapsed"]) *));
+
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
 
 @theme inline {
   /* shadcn/ui semantic tokens, mapped onto the palette above */
@@ -52,9 +65,30 @@
   --color-accent: var(--accent);
   --color-accent-ink: var(--accent-ink);
   --color-accent-soft: var(--accent-soft);
+  --font-display: var(--font-newsreader), Georgia, serif;
   --font-sans: var(--font-geist-sans), system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
+
+h1, h2 {
+  font-family: var(--font-sans);
+  letter-spacing: -0.02em;
+}
+
+/* Scrollbars follow the theme: slim, rounded thumb, transparent track. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 45%, transparent) transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted) 40%, transparent);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--muted) 70%, transparent); background-clip: content-box; }
 
 body {
   background: var(--bg);
@@ -78,7 +112,8 @@ body {
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
 }
 .btn {
   display: inline-flex;
@@ -86,8 +121,8 @@ body {
   justify-content: center;
   gap: 0.5rem;
   min-height: 44px;
-  padding: 0 1.1rem;
-  border-radius: 10px;
+  padding: 0 1.25rem;
+  border-radius: 999px;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--ink);
@@ -108,10 +143,17 @@ body {
   background: var(--accent);
   filter: brightness(1.08);
 }
+.app-frame {
+  background: var(--frame);
+}
+.tile {
+  background: var(--accent-soft);
+  border-radius: var(--radius-card);
+}
 .field {
   min-height: 44px;
-  padding: 0 0.85rem;
-  border-radius: 10px;
+  padding: 0 1rem;
+  border-radius: 14px;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--ink);
@@ -144,3 +186,18 @@ body {
     animation-duration: 0.01ms !important;
   }
 }
+
+/* AI create button: animated gradient with a 3D pressable face. */
+@keyframes ai-shift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+@keyframes ai-pop { from { opacity: 0; transform: translateY(16px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes ai-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ai-bounce { 0%, 80%, 100% { transform: translateY(0); opacity: .4; } 40% { transform: translateY(-4px); opacity: 1; } }
+.ai-btn__bg { background: linear-gradient(120deg, #7c3aed, #ec4899, #f59e0b, #06b6d4, #7c3aed); background-size: 300% 300%; animation: ai-shift 6s ease infinite; }
+.ai-btn { position: relative; display: inline-flex; height: 2.5rem; cursor: pointer; border-radius: 9999px; padding: 0 0 4px; background: #4c1d95; box-shadow: 0 6px 16px -4px rgb(124 58 237 / .55); transition: transform .12s, box-shadow .12s; }
+.ai-btn__face { display: inline-flex; align-items: center; gap: .5rem; height: 100%; padding: 0 .85rem; border-radius: 9999px; color: #fff; font-size: .875rem; font-weight: 600; white-space: nowrap; background: linear-gradient(120deg, #7c3aed, #ec4899, #f59e0b, #06b6d4, #7c3aed); background-size: 300% 300%; animation: ai-shift 6s ease infinite; box-shadow: inset 0 1px 0 rgb(255 255 255 / .45), inset 0 -2px 4px rgb(0 0 0 / .18); transform: translateY(0); transition: transform .12s; }
+.ai-btn:hover .ai-btn__face { transform: translateY(-1px); filter: brightness(1.08); }
+.ai-btn:active .ai-btn__face { transform: translateY(3px); }
+.ai-btn:focus-visible { outline: 2px solid #7c3aed; outline-offset: 3px; }
+.ai-pop { animation: ai-pop .22s ease-out; }
+.ai-fade { animation: ai-fade .2s ease-out; }
+.ai-dot { width: .4rem; height: .4rem; border-radius: 9999px; background: currentColor; opacity: .4; animation: ai-bounce 1s infinite; }

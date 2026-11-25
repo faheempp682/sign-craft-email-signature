@@ -4,20 +4,23 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
+/** `platform` tabs change settings for the whole installation, so only platform admins (admins of the default organization) see them. */
 const TABS = [
-  { href: "/admin/features", label: "Features" },
-  { href: "/admin/limits", label: "AI limits" },
+  { href: "/admin/features", label: "Features", platform: true },
+  { href: "/admin/limits", label: "AI limits", platform: true },
   { href: "/admin/campaigns", label: "Campaigns" },
   { href: "/admin/analytics", label: "Analytics" },
   { href: "/admin/disclaimers", label: "Disclaimers" },
-  { href: "/admin/users", label: "People" },
+  { href: "/admin/plans", label: "Plans" },
+  { href: "/admin/users", label: "People", platform: true },
 ];
 
-export function AdminTabs() {
+export function AdminTabs({ platform = true }: { platform?: boolean }) {
   const path = usePathname();
+  const tabs = TABS.filter((t) => platform || !("platform" in t && t.platform));
   return (
     <nav aria-label="Admin sections" className="flex gap-1 overflow-x-auto border-b border-line">
-      {TABS.map((t) => {
+      {tabs.map((t) => {
         const active = path.startsWith(t.href);
         return (
           <Link

@@ -39,6 +39,10 @@ const CATEGORY: Record<TemplateId, Category> = {
   "dark-luxe": "Elegant",
   "pastel-pill": "Creative",
   "split-color": "Corporate",
+  "talent-card": "Corporate",
+  "mountain-logo": "Corporate",
+  "script-contact": "Minimal",
+  "ringed-sales": "Corporate",
   studio: "Corporate",
 };
 
@@ -146,7 +150,7 @@ function categoryFor(doc: SignatureDoc, n: number): Category {
  */
 const ESSENTIALS: readonly string[] = [
   "classic", "modern-split", "minimal", "green-sidebar", "maroon-frame", "executive-navy", "minimal-line", "dark-luxe",
-  "pastel-pill", "split-color", "consultant-blue", "soft-card", "listing-banner", "noir-agent",
+  "pastel-pill", "split-color", "consultant-blue", "soft-card", "listing-banner", "noir-agent", "talent-card", "mountain-logo", "script-contact", "ringed-sales",
   ...[1, 3, 9, 11, 12, 16, 18, 19, 22, 28, 31, 38, 44, 53, 55, 60, 64, 66, 71, 75, 77, 84, 85, 94, 97, 99].map((n) => `studio-${String(n).padStart(3, "0")}`),
 ];
 const STUDIO_HAND: readonly string[] = ["editorial-arch", "bold-letter", "circle-accent", "spectrum", "geometric", "ticket", "orange-logo"];

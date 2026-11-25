@@ -15,7 +15,7 @@
  * SITE_PUBLIC is the marketing site and free generator. It is ONLY public when PUBLIC_SITE_ENABLED=true, so an
  * internal-only deployment never exposes it by accident.
  */
-export const ALWAYS_PUBLIC = ["/login", "/auth", "/c", "/b", "/r", "/api/public", "/api/sync/run", "/api/health/run"];
+export const ALWAYS_PUBLIC = ["/login", "/reset-password", "/auth", "/c", "/b", "/r", "/api/public", "/api/sync/run", "/api/health/run"];
 export const SITE_PUBLIC = ["/", "/signature-generator", "/for", "/privacy", "/terms", "/sitemap.xml", "/robots.txt"];
 
 const matches = (pathname: string, list: string[]) => list.some((p) => pathname === p || (p !== "/" && pathname.startsWith(`${p}/`)));

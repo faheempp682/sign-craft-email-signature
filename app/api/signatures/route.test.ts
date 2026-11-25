@@ -8,12 +8,14 @@ const state = vi.hoisted(() => ({
   count: 0,
   countFilter: null as null | string[],
   updated: [] as unknown[],
+  /** The admin's platform_settings value for the signature limit; null = no row. */
+  setting: null as unknown,
 }));
 
 vi.mock("@/lib/supabase/server", () => {
   const client = {
     from: () => ({
-      select: (_cols?: string, opts?: { head?: boolean }) => (opts?.head ? { eq: (c: string, v: string) => { state.countFilter = [c, v]; return Promise.resolve({ count: state.count }); } } : { single: async () => ({ data: { id: "new", name: "n", updated_at: "now" }, error: null }) }),
+      select: (_cols?: string, opts?: { head?: boolean }) => (opts?.head ? { eq: (c: string, v: string) => { state.countFilter = [c, v]; return Promise.resolve({ count: state.count }); } } : { single: async () => ({ data: { id: "new", name: "n", updated_at: "now" }, error: null }), eq: () => ({ maybeSingle: async () => ({ data: state.setting === null ? null : { value: state.setting } }) }) }),
       insert: (row: unknown) => {
         state.inserted.push(row);
         return { select: () => ({ single: async () => ({ data: { id: "new", name: "n", updated_at: "now" }, error: null }) }) };
@@ -50,6 +52,8 @@ beforeEach(() => {
   state.count = 0;
   state.countFilter = null;
   state.updated = [];
+  state.setting = null;
+  delete process.env.MAX_SIGNATURES_PER_ACCOUNT;
 });
 
 describe("/api/signatures", () => {
@@ -71,10 +75,41 @@ describe("/api/signatures", () => {
     expect(state.inserted).toHaveLength(1);
   });
 
-  it("POST: 429 at the per-user quota", async () => {
-    state.count = 100;
-    expect((await save()).status).toBe(429);
+  it("POST: 429 at the default limit of 5 signatures", async () => {
+    state.count = 5;
+    const res = await save();
+    expect(res.status).toBe(429);
+    expect((await res.json()).message).toContain("limit of 5");
     expect(state.inserted).toHaveLength(0);
+  });
+
+  it("POST: still saves the 5th signature (4 already saved)", async () => {
+    state.count = 4;
+    expect((await save()).status).toBe(201);
+  });
+
+  it("POST: the environment variable changes the limit", async () => {
+    process.env.MAX_SIGNATURES_PER_ACCOUNT = "8";
+    state.count = 7;
+    expect((await save()).status).toBe(201);
+    state.count = 8;
+    expect((await save()).status).toBe(429);
+  });
+
+  it("POST: the admin setting wins over the environment variable", async () => {
+    process.env.MAX_SIGNATURES_PER_ACCOUNT = "8";
+    state.setting = 2;
+    state.count = 2;
+    expect((await save()).status).toBe(429);
+  });
+
+  it("POST: a nonsense setting or variable falls back to 5", async () => {
+    process.env.MAX_SIGNATURES_PER_ACCOUNT = "lots";
+    state.setting = -3;
+    state.count = 5;
+    expect((await save()).status).toBe(429);
+    state.count = 4;
+    expect((await save()).status).toBe(201);
   });
 
   it("POST: the quota counts only the caller's own signatures (org admins can also read tagged ones)", async () => {

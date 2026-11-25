@@ -2,6 +2,7 @@ import { z } from "zod";
 import { adminRequest, dbFailure } from "@/lib/admin/route";
 import { deny } from "@/lib/authz/guard";
 import { ROLES } from "@/lib/authz/roles";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
@@ -33,7 +34,18 @@ export async function PUT(req: Request) {
     .from("invitations")
     .upsert({ email, role, invited_by: user.id, accepted_at: null, created_at: new Date().toISOString() }, { onConflict: "email" });
   if (error) return dbFailure(error);
-  return Response.json({ email, role }, { headers: noStore });
+
+  // Email the person a link that signs them in and sends them to set a password (needs SUPABASE_SERVICE_ROLE_KEY and email set up in Supabase).
+  const origin = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ?? new URL(req.url).origin;
+  const link = `${origin}/login`;
+  let emailed = false;
+  const admin = createAdminClient();
+  if (admin) {
+    const { error: sendError } = await admin.auth.admin.inviteUserByEmail(email, { redirectTo: `${origin}/reset-password` });
+    if (sendError) console.error("[admin/invitations] email failed:", sendError.message);
+    else emailed = true;
+  }
+  return Response.json({ email, role, emailed, link }, { headers: noStore });
 }
 
 /** Withdraw an invitation that has not been used. */

@@ -1,12 +1,15 @@
+import { notFound } from "next/navigation";
+import { isPlatformAdmin } from "@/lib/authz/guard";
 import { adminEmails } from "@/lib/authz/bootstrap";
 import { isRole, type Role } from "@/lib/authz/roles";
 import { createClient } from "@/lib/supabase/server";
-import { UsersAdmin, type Person } from "./users-admin";
+import { UsersAdmin, type Person, type PendingInvite } from "./users-admin";
 
 export const metadata = { title: "People · Admin · SignCraft" };
 export const dynamic = "force-dynamic";
 
 export default async function UsersPage() {
+  if (!(await isPlatformAdmin())) notFound(); // platform settings: admins of the default organization only
   const supabase = await createClient();
   if (!supabase) return null;
 
@@ -28,5 +31,14 @@ export default async function UsersPage() {
     return { email: p.email, joined: p.created_at, role: (isRole(r) ? r : "member") as Role, always: always.has(p.email.trim().toLowerCase()) };
   });
 
-  return <UsersAdmin orgName={org.data.name} people={people} />;
+  // Open invitations are a nice-to-have here: if they cannot load, the page still works.
+  const invites = await supabase.from("invitations").select("email, role, created_at").is("accepted_at", null).order("created_at", { ascending: false });
+  if (invites.error) console.error("[admin/users] invitations load failed:", invites.error.message);
+  const pending: PendingInvite[] = (invites.data ?? []).map((r) => ({
+    email: r.email,
+    role: (isRole(r.role) ? r.role : "member") as Role,
+    invited: r.created_at,
+  }));
+
+  return <UsersAdmin orgName={org.data.name} people={people} pending={pending} />;
 }

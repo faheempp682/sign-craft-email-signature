@@ -1,5 +1,8 @@
+import { notFound } from "next/navigation";
+import { isPlatformAdmin } from "@/lib/authz/guard";
 import { AI_FEATURES, FEATURES, ROLES, isAiFeature, type AiFeature, type Role } from "@/lib/authz/roles";
 import { createClient } from "@/lib/supabase/server";
+import { SIGNATURE_LIMIT_KEY, envSignatureLimit, parseLimit } from "@/lib/signature-limit";
 import { LimitsAdmin, type LimitRow, type UsageRow } from "./limits-admin";
 
 export const metadata = { title: "AI limits · Admin · SignCraft" };
@@ -9,14 +12,16 @@ const WINDOW_MS = 24 * 60 * 60_000;
 const USAGE_ROWS = 5000; // enough for a team; the summary says so if it was cut
 
 export default async function LimitsPage() {
+  if (!(await isPlatformAdmin())) notFound(); // platform settings: admins of the default organization only
   const supabase = await createClient();
   if (!supabase) return null;
 
   const since = new Date(Date.now() - WINDOW_MS).toISOString();
-  const [limits, usage, profiles] = await Promise.all([
+  const [limits, usage, profiles, setting] = await Promise.all([
     supabase.from("ai_limits").select("role, feature, per_minute, per_day"),
     supabase.from("ai_usage").select("user_id, feature, tokens_in, tokens_out").gte("created_at", since).order("created_at", { ascending: false }).limit(USAGE_ROWS),
     supabase.from("profiles").select("id, email"),
+    supabase.from("platform_settings").select("value").eq("key", SIGNATURE_LIMIT_KEY).maybeSingle(),
   ]);
   const failed = limits.error ?? usage.error ?? profiles.error;
   if (failed) {
@@ -45,5 +50,7 @@ export default async function LimitsPage() {
   }
   const usageRows = [...agg.values()].sort((a, b) => b.calls - a.calls).slice(0, 25);
 
-  return <LimitsAdmin rows={rows} usage={usageRows} truncated={(usage.data?.length ?? 0) >= USAGE_ROWS} />;
+  // A missing platform_settings table (migration 0019 not applied yet) just means "no admin setting": the environment value applies.
+  const adminLimit = setting.error ? null : parseLimit(setting.data?.value);
+  return <LimitsAdmin rows={rows} usage={usageRows} truncated={(usage.data?.length ?? 0) >= USAGE_ROWS} signatureLimit={{ adminValue: adminLimit, fallback: envSignatureLimit(), tableMissing: !!setting.error }} />;
 }

@@ -151,7 +151,7 @@ describe("POST /api/ai/vision: reading a screenshot", () => {
     modelReplies(JSON.stringify({ reply: "ok", doc: GOOD_DOC }));
     await send({ note: "keep it navy" });
     const req = state.model.mock.calls[0][0];
-    expect(req.model).toBe("claude-sonnet-5-5");
+    expect(req.model).toBe("claude-haiku-5-5");
     expect(req.system[0]).toMatchObject({ type: "text", cache_control: { type: "ephemeral" } });
     expect(req.messages[0].content[0]).toMatchObject({ type: "image", source: { type: "base64", media_type: "image/png" } });
     expect(req.messages[0].content[1].text).toContain("keep it navy");

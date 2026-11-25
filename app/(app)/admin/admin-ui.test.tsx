@@ -132,7 +132,8 @@ const limitRows: LimitRow[] = [
   { role: "designer", feature: "ai_design", label: "AI design", perMinute: null, perDay: null, configured: false },
   { role: "admin", feature: "ai_design", label: "AI design", perMinute: null, perDay: null, configured: true },
 ];
-const renderLimits = () => render(<LimitsAdmin rows={limitRows} usage={[]} truncated={false} />);
+const sigInfo: { adminValue: number | null; fallback: number; tableMissing: boolean } = { adminValue: null, fallback: 5, tableMissing: false };
+const renderLimits = (signatureLimit = sigInfo) => render(<LimitsAdmin rows={limitRows} usage={[]} truncated={false} signatureLimit={signatureLimit} />);
 const memberForm = () => screen.getByLabelText("Per minute", { selector: "#m-member\\:ai_design" }).closest("form") as HTMLFormElement;
 const field = (id: string) => document.getElementById(id) as HTMLInputElement;
 
@@ -179,8 +180,34 @@ describe("AI limits screen", () => {
     expect(sent).toHaveLength(0);
   });
 
+  it("shows the signature limit in use, and saves a new one", async () => {
+    renderLimits();
+    expect(screen.getByText(/Using 5/)).toBeTruthy();
+    fireEvent.change(field("sig-limit"), { target: { value: "8" } });
+    fireEvent.submit(field("sig-limit").closest("form")!);
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]).toEqual({ url: "/api/admin/signature-limit", method: "PUT", body: { limit: 8 } });
+  });
+
+  it("blank resets the signature limit to the environment value", async () => {
+    renderLimits({ adminValue: 8, fallback: 5, tableMissing: false });
+    expect(field("sig-limit").value).toBe("8");
+    fireEvent.change(field("sig-limit"), { target: { value: "" } });
+    fireEvent.submit(field("sig-limit").closest("form")!);
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0].body).toEqual({ limit: null });
+  });
+
+  it.each(["0", "abc", "2.5", "1001"])("refuses the signature limit %j before sending", async (bad) => {
+    renderLimits();
+    fireEvent.change(field("sig-limit"), { target: { value: bad } });
+    fireEvent.submit(field("sig-limit").closest("form")!);
+    expect(await screen.findByText(/whole number from 1 to 1000/)).toBeTruthy();
+    expect(sent).toHaveLength(0);
+  });
+
   it("shows recent usage and warns when the list was cut short", () => {
-    render(<LimitsAdmin rows={limitRows} usage={[{ who: "jane@acme.com", feature: "ai_design", label: "AI design", calls: 12, tokensIn: 4500, tokensOut: 900 }]} truncated />);
+    render(<LimitsAdmin rows={limitRows} usage={[{ who: "jane@acme.com", feature: "ai_design", label: "AI design", calls: 12, tokensIn: 4500, tokensOut: 900 }]} truncated signatureLimit={sigInfo} />);
     expect(screen.getByText("jane@acme.com")).toBeTruthy();
     expect(screen.getByText("12")).toBeTruthy();
     expect(screen.getByText(/most recent 5,000 calls/)).toBeTruthy();

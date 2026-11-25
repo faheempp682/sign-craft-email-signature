@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "template_id": "mountain-logo",
+  "theme": { "primary": "#4F7A8C", "text": "#222222", "muted": "#555555", "bg": "#FFFFFF", "accent2": "#4F7A8C", "font": "Arial", "spacing": "normal" },
+  "blocks": [
+    { "type": "avatar", "src": "https://placehold.co/200x160.png", "alt": "Example logo", "shape": "square", "size": 100 },
+    { "type": "identity", "name": "John Doe", "title": "Sales & Marketing Director" },
+    { "type": "contact", "phone": "+48 75 64 61 001", "email": "john.doe@codetwo.com", "website": "www.codetwo.com", "address": "16 Freedom St, Deer Hill, 58-500 Poland" },
+    {
+      "type": "social",
+      "links": [
+        { "network": "facebook", "url": "https://facebook.com/yourname" },
+        { "network": "twitter", "url": "https://x.com/yourname" },
+        { "network": "youtube", "url": "https://youtube.com/@yourname" },
+        { "network": "linkedin", "url": "https://linkedin.com/in/yourname" },
+        { "network": "instagram", "url": "https://instagram.com/yourname" }
+      ]
+    }
+  ]
+}

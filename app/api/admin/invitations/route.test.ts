@@ -45,7 +45,7 @@ describe("PUT /api/admin/invitations", () => {
   it("invites an address, lowercased and trimmed, with the chosen role", async () => {
     const res = await call(PUT, "PUT", { email: "  Jane@Example.COM ", role: "designer" });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ email: "jane@example.com", role: "designer" });
+    expect(await res.json()).toMatchObject({ email: "jane@example.com", role: "designer" });
     expect(upserts()).toHaveLength(1);
     expect(upserts()[0][2]).toMatchObject({ email: "jane@example.com", role: "designer", invited_by: "admin-1", accepted_at: null });
   });

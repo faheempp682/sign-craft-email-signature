@@ -468,6 +468,25 @@ describe("parent_id and plan_id are guarded", () => {
     expect(await code(() => create(w.aAdmin, w.c1))).toBe("42501"); // the agency admin is not a DIRECT admin of the client
   });
 
+});
+
+/**
+ * The guard trigger on parent_id / plan_id is defence in depth. Since migration 0016 only PLATFORM admins (admins of the
+ * default organization) can write the organizations table at all, so these checks run for actors who hold that role as
+ * well as the organization roles named in each test. (That plain organization admins cannot reach the table is tested in
+ * lib/authz/platform-admin.db.test.ts.)
+ */
+describe("parent_id and plan_id are guarded (for platform admins, who are the only ones that can reach the trigger)", () => {
+  const actors = () => [w.aAdmin, w.oAdmin, w.c1Admin, w.c2Admin, w.both];
+  beforeAll(async () => {
+    for (const u of actors()) {
+      await q("insert into public.memberships (org_id, user_id, role) select id, $1, 'admin' from public.organizations where is_default on conflict (org_id, user_id) do update set role = 'admin'", [u]);
+    }
+  });
+  afterAll(async () => {
+    await q("delete from public.memberships where user_id = any($1::uuid[]) and org_id in (select id from public.organizations where is_default)", [actors()]);
+  });
+
   it("a parent can be set on a new organization only by an admin of that parent (direct insert)", async () => {
     const ins = (user: string, parent: string) => as(user, () => t.db.query("insert into public.organizations (name, parent_id) values ('Direct', $1)", [parent]));
     await ins(w.aAdmin, w.agency);

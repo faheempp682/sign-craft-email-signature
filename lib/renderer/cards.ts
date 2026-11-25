@@ -1,6 +1,7 @@
+import { applyBlockStyle } from "./block-style";
 import type { Block, SignatureDoc, Theme } from "@/lib/schema/document";
 import { composeSkin } from "./studio";
-import { GAP, NETWORK_LABEL, TABLE_ATTRS, esc, fontStack, renderBlock, safeHttpsUrl, telHref } from "./shared";
+import { GAP, NETWORK_LABEL, TABLE_ATTRS, esc, fontStack, renderBlock, safeHttpsUrl, socialDisplay, socialIconUrl, telHref } from "./shared";
 
 /**
  * Designed ("card") templates. Same rules as the base layouts: nested tables, inline styles, bgcolor + background-color,
@@ -27,6 +28,10 @@ export const CARD_IDS = [
   "dark-luxe",
   "pastel-pill",
   "split-color",
+  "talent-card",
+  "mountain-logo",
+  "script-contact",
+  "ringed-sales",
   "studio",
 ] as const;
 export type CardId = (typeof CARD_IDS)[number];
@@ -47,6 +52,7 @@ export function splitName(name: string): [string, string] {
 }
 
 const hex = (c: string) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
+const lum = (c: string) => { const [r, g, b] = hex(c); return 0.299 * r + 0.587 * g + 0.114 * b; };
 export function mix(a: string, b: string, t: number): string {
   const [x, y] = [hex(a), hex(b)];
   return `#${x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, "0")).join("")}`;
@@ -130,14 +136,18 @@ export function stackCols(it: Item[], o: { cols: 1 | 2; lfs: number; lc: string;
   return tbl(`<tr><td valign="top"${leftAttr}>${col(left)}</td>${sp(o.colGap ?? 24)}<td valign="top">${col(right)}</td></tr>`);
 }
 
-const GLYPH: Record<string, string> = { linkedin: "in", twitter: "X", facebook: "f", instagram: "ig", youtube: "yt", github: "gh", tiktok: "tk" };
-
 function socialBadges(b: B<"social">, o: { size: number; bg: string; fg: string; gap?: number; dir?: "row" | "col"; round?: boolean; fs?: number }) {
   if (!b.links.length) return "";
   const gap = o.gap ?? 6;
+  if (b.display) return socialDisplay(b, { text: /^#f{3,6}$/i.test(o.bg) ? o.fg : o.bg }, { size: o.size, gap, dir: o.dir, fs: (o.fs ?? 9) + 3 });
+  // Light cell + coloured glyph (the template's tint): the hosted tile has the glyph cut out over a cell filled with the glyph colour.
+  const knock = lum(o.bg) > lum(o.fg);
   const cell = (l: B<"social">["links"][number]) => {
     const radius = o.round === false ? 3 : Math.round(o.size / 2);
-    return `<td align="center" valign="middle" width="${o.size}" height="${o.size}" bgcolor="${o.bg}" style="width:${o.size}px;height:${o.size}px;background-color:${o.bg};border-radius:${radius}px;"><a href="${esc(l.url)}" target="_blank" title="${esc(NETWORK_LABEL[l.network] ?? l.network)}" style="display:block;color:${o.fg};text-decoration:none;font-size:${o.fs ?? 9}px;font-weight:bold;line-height:${o.size}px;text-align:center;">${GLYPH[l.network] ?? l.network}</a></td>`;
+    const label = NETWORK_LABEL[l.network] ?? l.network;
+    const cellBg = knock ? o.fg : o.bg;
+    if (l.icon) return `<td valign="middle" width="${o.size}" height="${o.size}" style="width:${o.size}px;height:${o.size}px;"><a href="${esc(l.url)}" target="_blank" title="${esc(label)}" style="text-decoration:none;"><img src="${esc(l.icon)}" width="${o.size}" height="${o.size}" alt="${esc(label)}" style="display:block;border:0;width:${o.size}px;height:${o.size}px;" /></a></td>`;
+    return `<td align="center" valign="middle" width="${o.size}" height="${o.size}" bgcolor="${cellBg}" style="width:${o.size}px;height:${o.size}px;background-color:${cellBg};border-radius:${radius}px;"><a href="${esc(l.url)}" target="_blank" title="${esc(label)}" style="display:block;text-decoration:none;"><img src="${socialIconUrl(l.network, knock ? "knock" : "glyph")}" width="${o.size}" height="${o.size}" alt="${esc(label)}" style="display:block;border:0;width:${o.size}px;height:${o.size}px;" /></a></td>`;
   };
   if (o.dir === "col") return tbl(b.links.map((l, i) => `${i ? `<tr><td height="${gap}" style="height:${gap}px;font-size:1px;line-height:1px;">&nbsp;</td></tr>` : ""}<tr>${cell(l)}</tr>`).join(""));
   return tbl(`<tr>${b.links.map((l, i) => (i ? sp(gap) : "") + cell(l)).join("")}</tr>`);
@@ -158,7 +168,8 @@ export class Slots {
     private skin: Skin,
   ) {}
   html(b: Block) {
-    return this.skin.block?.(b, this.doc.theme) ?? renderBlock(b, { theme: this.doc.theme });
+    const skinned = this.skin.block?.(b, this.doc.theme);
+    return skinned === undefined ? renderBlock(b, { theme: this.doc.theme }) : applyBlockStyle(b, skinned, this.doc.theme);
   }
   get<T extends Block["type"]>(type: T): Slot<T> | undefined {
     const i = this.doc.blocks.findIndex((b) => b.type === type);
@@ -283,7 +294,7 @@ const maroonFrame: Skin = {
       return `<div style="font-family:${serif};font-size:36px;line-height:34px;color:${t.text};">${esc(f.toUpperCase())}</div>${r ? `<div style="font-family:${serif};font-size:36px;line-height:36px;font-style:italic;color:${t.text};">${esc(r.toUpperCase())}</div>` : ""}${b.title ? `<div style="padding-top:8px;font-size:9px;line-height:12px;letter-spacing:1px;text-transform:uppercase;color:${t.text};">${esc(b.title)}</div>` : ""}`;
     }
     if (b.type === "contact") return stackCols(items(b, t.text), { cols: 1, lfs: 8, lc: t.text, vfs: 9, vlh: 12, gap: 9, upper: true });
-    if (b.type === "social") return `<div style="font-size:9px;line-height:14px;letter-spacing:1px;text-transform:uppercase;">${b.links.map((l) => `<a href="${esc(l.url)}" target="_blank" style="color:${t.text};text-decoration:none;">${esc(NETWORK_LABEL[l.network] ?? l.network)}</a>`).join(" &nbsp;/&nbsp; ")}</div>`;
+    if (b.type === "social") return b.display ? socialDisplay(b, t, { size: 22 }) : `<div style="font-size:9px;line-height:14px;letter-spacing:1px;text-transform:uppercase;">${b.links.map((l) => `<a href="${esc(l.url)}" target="_blank" style="color:${t.text};text-decoration:none;">${esc(NETWORK_LABEL[l.network] ?? l.network)}</a>`).join(" &nbsp;/&nbsp; ")}</div>`;
   },
   layout(s, t) {
     const av = s.get("avatar");
@@ -464,7 +475,7 @@ const softCard: Skin = {
       return `<div style="font-size:15px;line-height:20px;font-weight:bold;color:${t.primary};">${esc(b.name)}</div>${b.title ? `<div style="font-size:13px;line-height:18px;color:${t.text};">${esc(b.title)}</div>` : ""}${b.company ? `<div style="padding-top:12px;font-size:13px;line-height:18px;font-weight:bold;color:${t.text};">${esc(b.company)}</div>` : ""}`;
     }
     if (b.type === "contact") return letterRows(items(b, t.text), { fs: 12, lh: 17, gap: 3, lw: 26, lc: t.primary, tc: t.text, label: { phone: "+ t", email: "+ e", website: "+ w", address: "+ a" } as Record<Key, string> });
-    if (b.type === "social") return `<table ${TABLE_ATTRS}><tr><td valign="middle" style="font-size:12px;font-weight:bold;color:${t.text};padding-right:10px;">Follow us:</td><td valign="middle">${socialBadges(b, { size: 19, bg: mix(t.primary, "#FFFFFF", 0.35), fg: "#FFFFFF", gap: 6, fs: 8 })}</td></tr></table>`;
+    if (b.type === "social") return b.display ? socialDisplay(b, t, { size: 22 }) : `<table ${TABLE_ATTRS}><tr><td valign="middle" style="font-size:12px;font-weight:bold;color:${t.text};padding-right:10px;">Follow us:</td><td valign="middle">${socialBadges(b, { size: 19, bg: mix(t.primary, "#FFFFFF", 0.35), fg: "#FFFFFF", gap: 6, fs: 8 })}</td></tr></table>`;
     if (b.type === "disclaimer") return `<div style="font-size:11px;line-height:16px;color:${t.text};">${esc(b.text)}</div>`;
   },
   layout(s, t) {
@@ -533,7 +544,7 @@ const minimalLine: Skin = {
       return `<div style="font-size:20px;line-height:26px;font-weight:bold;color:${t.text};">${esc(b.name)}</div>${sub ? `<div style="font-size:13px;line-height:18px;color:${t.muted};">${sub}</div>` : ""}`;
     }
     if (b.type === "contact") return `<div style="font-size:12px;line-height:19px;color:${t.text};">${items(b, t.text, t.primary).map((x) => x.html).join(`<span style="color:${t.muted};"> &nbsp;|&nbsp; </span>`)}</div>`;
-    if (b.type === "social") return `<div style="font-size:12px;line-height:18px;font-weight:bold;">${b.links.map((l) => `<a href="${esc(l.url)}" target="_blank" style="color:${t.primary};text-decoration:none;">${esc(NETWORK_LABEL[l.network] ?? l.network)}</a>`).join(`<span style="color:${t.muted};"> &nbsp;/&nbsp; </span>`)}</div>`;
+    if (b.type === "social") return b.display ? socialDisplay(b, t, { size: 22 }) : `<div style="font-size:12px;line-height:18px;font-weight:bold;">${b.links.map((l) => `<a href="${esc(l.url)}" target="_blank" style="color:${t.primary};text-decoration:none;">${esc(NETWORK_LABEL[l.network] ?? l.network)}</a>`).join(`<span style="color:${t.muted};"> &nbsp;/&nbsp; </span>`)}</div>`;
   },
   layout(s, t) {
     const av = s.get("avatar");
@@ -561,7 +572,7 @@ const darkLuxe: Skin = {
       const it = items(b, t.text);
       return tbl(`<tr>${it.map((x, i) => `${i ? sp(26) : ""}<td valign="top"><div style="font-size:8px;line-height:12px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;color:${t.primary};">${WORD[x.k]}</div><div style="font-size:11px;line-height:16px;color:${t.text};">${x.html}</div></td>`).join("")}</tr>`);
     }
-    if (b.type === "social") return `<div style="font-size:10px;line-height:14px;letter-spacing:2px;text-transform:uppercase;">${b.links.map((l) => `<a href="${esc(l.url)}" target="_blank" style="color:${t.primary};text-decoration:none;">${esc(NETWORK_LABEL[l.network] ?? l.network)}</a>`).join(" &nbsp;&middot;&nbsp; ")}</div>`;
+    if (b.type === "social") return b.display ? socialDisplay(b, t, { size: 22 }) : `<div style="font-size:10px;line-height:14px;letter-spacing:2px;text-transform:uppercase;">${b.links.map((l) => `<a href="${esc(l.url)}" target="_blank" style="color:${t.primary};text-decoration:none;">${esc(NETWORK_LABEL[l.network] ?? l.network)}</a>`).join(" &nbsp;&middot;&nbsp; ")}</div>`;
   },
   layout(s, t) {
     const av = s.get("avatar");
@@ -618,7 +629,158 @@ const splitColor: Skin = {
   },
 };
 
+/* ===== talent-card (Gianna Reina): full-height photo, bold name, blue title, soft social circles, Trustpilot pill ===== */
+const talentCard: Skin = {
+  block(b, t) {
+    if (b.type === "avatar") {
+      // The cropper uses size : height as its aspect, so the photo fills the card's full height without stretching.
+      // Always full-height and flush to the card edge, even when the document has no height saved.
+      const h = b.height ?? Math.max(238, Math.round(b.size * 1.72));
+      return `<img src="${esc(b.src)}" alt="${esc(b.alt)}" width="${b.size}" height="${h}" style="display:block;width:${b.size}px;height:${h}px;border:0;border-radius:18px 0 0 18px;object-fit:cover;" />`;
+    }
+    if (b.type === "identity") {
+      return `<div style="font-size:20px;line-height:26px;font-weight:bold;color:${t.text};">${esc(b.name)}</div>${b.title ? `<div style="font-size:14px;line-height:20px;font-weight:bold;color:${t.primary};">${esc(b.title)}</div>` : ""}${b.company ? `<div style="padding-top:4px;font-size:13px;line-height:18px;color:${t.muted};"><span style="color:${t.primary};font-size:15px;font-weight:bold;">&infin;</span>&nbsp; ${esc(b.company)}</div>` : ""}`;
+    }
+    if (b.type === "contact") {
+      const it = items(b, t.text, t.primary);
+      const inline = it.filter((x) => x.k === "phone" || x.k === "email");
+      const rest = it.filter((x) => x.k !== "phone" && x.k !== "email");
+      const line = inline.length ? tbl(`<tr>${inline.map((x, i) => `${i ? sp(16) : ""}<td valign="middle" style="font-size:12px;line-height:18px;color:${t.text};">${x.html}</td>`).join("")}</tr>`) : "";
+      const more = rest.map((x) => `<div style="padding-top:${line ? 6 : 0}px;font-size:13px;line-height:20px;font-weight:bold;color:${t.primary};">${x.html}</div>`).join("");
+      return line + more;
+    }
+    if (b.type === "social") return socialBadges(b, { size: 26, bg: mix(t.primary, "#FFFFFF", 0.88), fg: t.primary, gap: 6, fs: 9 });
+    if (b.type === "button") {
+      const href = safeHttpsUrl(b.href);
+      const label = `<span style="color:#00B67A;font-size:15px;">&#9733;</span>&nbsp; <span style="color:${t.muted};">${esc(b.label)}</span>`;
+      return `<table ${TABLE_ATTRS}><tr><td style="border:1px solid #D1D5DB;border-radius:16px;padding:5px 14px;font-size:12px;line-height:16px;white-space:nowrap;">${href ? `<a href="${esc(href)}" target="_blank" style="text-decoration:none;color:${t.muted};">${label}</a>` : label}</td></tr></table>`;
+    }
+    if (b.type === "text") {
+      const i = b.text.indexOf(":");
+      const [head, tail] = i > 0 && i < 24 ? [b.text.slice(0, i + 1), b.text.slice(i + 1)] : ["", b.text];
+      return `<div style="font-size:12px;line-height:18px;">${head ? `<span style="font-weight:bold;color:${t.text};">${esc(head)}</span>` : ""}<span style="font-weight:bold;color:${t.primary};">${esc(tail)}</span></div>`;
+    }
+    if (b.type === "disclaimer") return `<div style="font-size:10px;line-height:14px;color:${mix(t.muted, "#FFFFFF", 0.15)};">${esc(b.text)}</div>`;
+  },
+  layout(s, t) {
+    const av = s.get("avatar");
+    const id = s.get("identity");
+    const co = s.get("contact");
+    const so = s.get("social");
+    const bu = s.get("button");
+    const tx = s.get("text");
+    const di = s.get("disclaimer");
+    const rule = `<table ${TABLE_ATTRS} width="100%"><tr><td height="1" style="height:1px;line-height:1px;font-size:1px;border-top:1px solid #E5E7EB;">&nbsp;</td></tr></table>`;
+    const socials = so || bu ? `<table ${TABLE_ATTRS}><tr>${td(so?.html, 'valign="middle"')}${so && bu ? sp(10) : ""}${td(bu?.html, 'valign="middle"')}</tr></table>` : "";
+    const body = [id?.html, co?.html && vsp(12) + co.html, socials && vsp(12) + socials, tx && vsp(12) + rule + vsp(10) + tx.html].filter(Boolean).join("");
+    const card = `<table ${TABLE_ATTRS} width="550" bgcolor="${t.bg}" style="width:550px;background-color:${t.bg};border:1px solid #E5E7EB;border-radius:18px;font-family:${fonts(t)};color:${t.text};"><tr>${td(av?.html, 'valign="top" style="padding:0;"')}<td valign="middle" style="padding:20px 22px;">${body}</td></tr></table>`;
+    return di ? card + vsp(10) + `<table ${TABLE_ATTRS} width="550" style="width:550px;"><tr><td>${di.html}</td></tr></table>` : card;
+  },
+};
+
+const BRAND: Record<string, string> = { facebook: "#1877F2", twitter: "#1DA1F2", youtube: "#E62117", linkedin: "#0A66C2", instagram: "#C13584", github: "#24292F", tiktok: "#111111" };
+
+/** Square badges in each network's own colour. */
+function brandSquares(b: B<"social">, t: Theme, size: number, gap: number) {
+  if (!b.links.length) return "";
+  if (b.display) return socialDisplay(b, t, { size });
+  const cell = (l: B<"social">["links"][number]) =>
+    l.icon ? `<td valign="middle" width="${size}" height="${size}" style="width:${size}px;height:${size}px;"><a href="${esc(l.url)}" target="_blank" style="text-decoration:none;"><img src="${esc(l.icon)}" width="${size}" height="${size}" alt="${esc(NETWORK_LABEL[l.network] ?? l.network)}" style="display:block;border:0;width:${size}px;height:${size}px;" /></a></td>` :
+    `<td align="center" valign="middle" width="${size}" height="${size}" bgcolor="${BRAND[l.network] ?? t.primary}" style="width:${size}px;height:${size}px;background-color:${BRAND[l.network] ?? t.primary};border-radius:2px;"><a href="${esc(l.url)}" target="_blank" title="${esc(NETWORK_LABEL[l.network] ?? l.network)}" style="display:block;text-decoration:none;"><img src="${socialIconUrl(l.network, "glyph")}" width="${size}" height="${size}" alt="${esc(NETWORK_LABEL[l.network] ?? l.network)}" style="display:block;border:0;width:${size}px;height:${size}px;" /></a></td>`;
+  return tbl(`<tr>${b.links.map((l, i) => (i ? sp(gap) : "") + cell(l)).join("")}</tr>`);
+}
+
+const ORDER: Key[] = ["phone", "email", "address", "website"];
+const byOrder = (it: Item[]) => [...it].sort((a, c) => ORDER.indexOf(a.k) - ORDER.indexOf(c.k));
+
+/* ===== mountain-logo (John Doe): logo, name + website + socials, thin divider, labelled contact lines ===== */
+const mountainLogo: Skin = {
+  block(b, t) {
+    if (b.type === "identity") {
+      return `<div style="font-size:17px;line-height:22px;font-weight:bold;color:${t.primary};">${esc(b.name)}</div>${b.title ? `<div style="font-size:12px;line-height:18px;color:${t.text};">${esc(b.title)}</div>` : ""}`;
+    }
+    if (b.type === "contact") {
+      const it = items(b, t.text).filter((x) => x.k !== "website");
+      const lab = { phone: "T:", email: "E:", website: "W:", address: "A:" } as Record<Key, string>;
+      return letterRows(byOrder(it), { fs: 11, lh: 16, gap: 8, lw: 22, lc: t.text, tc: t.text, label: lab });
+    }
+    if (b.type === "social") return brandSquares(b, t, 16, 5);
+  },
+  layout(s, t) {
+    const av = s.get("avatar");
+    const id = s.get("identity");
+    const co = s.get("contact");
+    const so = s.get("social");
+    const web = co ? items(co.b, t.text, t.primary).find((x) => x.k === "website") : undefined;
+    const site = web ? `<div style="font-size:11px;line-height:16px;font-weight:bold;color:${t.primary};">${web.html.replace(/color:[^;]+;/, `color:${t.primary};`)}</div>` : "";
+    const mid = `<td valign="middle" style="padding:0 18px 0 12px;">${id?.html ?? ""}${site}${so ? vsp(8) + so.html : ""}</td>`;
+    const right = co?.html ? `<td valign="middle" style="border-left:1px solid #9CA3AF;padding:6px 0 6px 14px;">${co.html}</td>` : "";
+    return `<table ${TABLE_ATTRS} bgcolor="${t.bg}" style="background-color:${t.bg};font-family:${fonts(t)};color:${t.text};"><tr>${td(av?.html, 'valign="middle" style="padding-right:4px;"')}${mid}${right}</tr></table>`;
+  },
+};
+
+/* ===== script-contact (Juliana Silva): round photo, script name, icon contact lines ===== */
+const SCRIPT = "'Brush Script MT','Segoe Script','Lucida Handwriting',cursive,Georgia,serif";
+const scriptContact: Skin = {
+  block(b, t) {
+    if (b.type === "identity") {
+      return `<div style="font-family:${SCRIPT};font-size:46px;line-height:56px;color:${t.text};">${esc(b.name)}</div>${b.title ? `<div style="font-size:13px;line-height:18px;letter-spacing:1px;color:${t.muted};">${esc(b.title)}</div>` : ""}`;
+    }
+    if (b.type === "contact") return badgeRows(byOrder(items(b, t.text)), { fs: 16, lh: 22, gap: 10, size: 22, bg: t.text, fg: t.bg, tc: t.text, round: true });
+    if (b.type === "social") return socialBadges(b, { size: 24, bg: t.text, fg: t.bg, gap: 8, fs: 9 });
+  },
+  layout(s, t) {
+    const av = s.get("avatar");
+    const id = s.get("identity");
+    const co = s.get("contact");
+    const so = s.get("social");
+    const right = `${id?.html ?? ""}${co ? vsp(10) + co.html : ""}${so ? vsp(12) + so.html : ""}`;
+    return `<table ${TABLE_ATTRS} bgcolor="${t.bg}" style="background-color:${t.bg};font-family:${fonts(t)};color:${t.text};"><tr>${td(av?.html, 'valign="middle" style="padding-right:48px;"')}<td valign="middle">${right}</td></tr></table>`;
+  },
+};
+
+/* ===== ringed-sales (Marcus Chen): ringed photo, bold name, labelled contact, call button, rule, partner badges ===== */
+const ringedSales: Skin = {
+  block(b, t) {
+    if (b.type === "avatar") {
+      return `<img src="${esc(b.src)}" alt="${esc(b.alt)}" width="${b.size}" height="${b.size}" style="display:block;width:${b.size}px;height:${b.size}px;border:4px solid ${t.primary};border-radius:50%;" />`;
+    }
+    if (b.type === "identity") {
+      const sub = [b.title, b.company].filter(Boolean).map((x) => esc(x as string)).join(" | ");
+      return `<div style="font-size:24px;line-height:30px;font-weight:bold;color:${t.primary};">${esc(b.name)}</div>${sub ? `<div style="font-size:14px;line-height:22px;color:${t.muted};">${sub}</div>` : ""}`;
+    }
+    if (b.type === "text") return `<div style="font-size:14px;line-height:22px;color:${t.muted};">${esc(b.text)}</div>`;
+    if (b.type === "contact") {
+      const lab = { phone: "D:", email: "E:", website: "W:", address: "A:" } as Record<Key, string>;
+      return letterRows(byOrder(items(b, t.text)), { fs: 14, lh: 20, gap: 7, lw: 28, lc: t.primary, tc: t.text, label: lab });
+    }
+    if (b.type === "button") {
+      const href = safeHttpsUrl(b.href);
+      const i = b.label.indexOf(":");
+      const label = i > 0 ? `<b>${esc(b.label.slice(0, i + 1))}</b>${esc(b.label.slice(i + 1))}` : `<b>${esc(b.label)}</b>`;
+      return `<table ${TABLE_ATTRS}><tr><td bgcolor="${t.primary}" style="background-color:${t.primary};border-radius:8px;padding:10px 18px;font-size:13px;line-height:18px;color:#FFFFFF;">${href ? `<a href="${esc(href)}" target="_blank" style="color:#FFFFFF;text-decoration:none;">${label}</a>` : label}</td></tr></table>`;
+    }
+    if (b.type === "social") return socialBadges(b, { size: 24, bg: t.primary, fg: "#FFFFFF", gap: 8, fs: 9 });
+  },
+  layout(s, t) {
+    const av = s.get("avatar");
+    const id = s.get("identity");
+    const tx = s.get("text");
+    const co = s.get("contact");
+    const bu = s.get("button");
+    const ba = s.get("banner");
+    const so = s.get("social");
+    const rule = `<table ${TABLE_ATTRS} width="100%"><tr><td height="3" bgcolor="${t.primary}" style="height:3px;line-height:3px;font-size:1px;background-color:${t.primary};">&nbsp;</td></tr></table>`;
+    const right = [id?.html, tx?.html, co && vsp(10) + co.html, bu && vsp(16) + bu.html, (ba || so) && vsp(16) + rule + vsp(14) + (ba?.html ?? "") + (so ? (ba ? vsp(8) : "") + so.html : "")].filter(Boolean).join("");
+    return `<table ${TABLE_ATTRS} bgcolor="${t.bg}" style="background-color:${t.bg};font-family:${fonts(t)};color:${t.text};"><tr>${td(av?.html, 'valign="top" style="padding-right:26px;"')}<td valign="top" width="360" style="width:360px;">${right}</td></tr></table>`;
+  },
+};
+
 const SKINS: Record<Exclude<CardId, "studio">, Skin> = {
+  "mountain-logo": mountainLogo,
+  "script-contact": scriptContact,
+  "ringed-sales": ringedSales,
+  "talent-card": talentCard,
   "executive-navy": executiveNavy,
   "minimal-line": minimalLine,
   "dark-luxe": darkLuxe,

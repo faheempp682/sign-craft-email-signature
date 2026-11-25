@@ -84,6 +84,30 @@ export async function requireRole(min: Role, messages: Messages = {}): Promise<G
   }
 }
 
+/**
+ * Platform admin: an admin of the DEFAULT organization (database function is_admin(), migration 0016). This is who may change
+ * global settings: feature flags, AI limits, per-person overrides, roles in the default organization. An admin of some other
+ * organization (a client of an agency, say) passes requireRole("admin") for their own organization's screens but is NOT a
+ * platform admin. The database enforces the same rule under row-level security; this makes the API answer 403 cleanly.
+ */
+export async function requirePlatformAdmin(messages: Messages = {}): Promise<Guard<UserCtx & { role: Role }>> {
+  const g = await requireRole("admin", messages); // also performs the ADMIN_EMAILS promotion
+  if (!g.ok) return g;
+  const { data, error } = await g.ctx.supabase.rpc("is_admin");
+  if (error || typeof data !== "boolean") {
+    console.error("[authz] could not check platform admin:", error?.message ?? `unexpected value ${String(data)}`);
+    return { ok: false, response: unavailable() };
+  }
+  if (!data) return { ok: false, response: deny(403, "forbidden", "You do not have permission to do that.") };
+  return g;
+}
+
+/** For server-rendered pages: true only for a platform admin. */
+export async function isPlatformAdmin(): Promise<boolean> {
+  const g = await requirePlatformAdmin();
+  return g.ok;
+}
+
 /** Signed in AND the feature is enabled for them (role default, then organization and user overrides). */
 export async function requireFeature(feature: Feature, messages: Messages = {}): Promise<Guard<UserCtx>> {
   const g = await requireUser(messages);

@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import { deny, requireRole, type Guard, type UserCtx } from "@/lib/authz/guard";
+import { deny, requirePlatformAdmin, type Guard, type UserCtx } from "@/lib/authz/guard";
 import type { Role } from "@/lib/authz/roles";
 
 export { sameOrigin } from "@/lib/authz/origin";
@@ -8,7 +8,7 @@ import { sameOrigin } from "@/lib/authz/origin";
 /** Origin check, then admin check, then JSON body validation. Every admin write goes through this. */
 export async function adminRequest<S extends z.ZodType>(req: Request, schema: S): Promise<Guard<{ ctx: UserCtx & { role: Role }; data: z.infer<S> }>> {
   if (!sameOrigin(req)) return { ok: false, response: deny(403, "bad_origin", "This request did not come from the app.") };
-  const g = await requireRole("admin", { unauthorized: "Sign in as an admin." });
+  const g = await requirePlatformAdmin({ unauthorized: "Sign in as an admin." });
   if (!g.ok) return g;
   let body: unknown;
   try {

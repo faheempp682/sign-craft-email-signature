@@ -6,8 +6,8 @@ import { openAiGate, type AiGate } from "@/lib/authz/ai-gate";
 
 export const runtime = "nodejs";
 
-/** Reading a picture is the one job that needs a stronger model (PROJECT.md section 8). Override with ANTHROPIC_VISION_MODEL. */
-const MODEL = process.env.ANTHROPIC_VISION_MODEL || "claude-sonnet-5-5";
+/** Cheap by default: Haiku reads screenshots well enough. Set ANTHROPIC_VISION_MODEL=claude-sonnet-5-5 for harder images. */
+const MODEL = process.env.ANTHROPIC_VISION_MODEL || "claude-haiku-5-5";
 const MAX_OUTPUT_TOKENS = 4000;
 
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
@@ -62,7 +62,7 @@ async function handle(req: Request, gate: AiGate): Promise<Response> {
         // The instructions never change, so they are marked cacheable.
         system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
         messages,
-        output_config: { effort: "medium" },
+        output_config: { effort: "low" },
       });
       gate.record((res.usage?.input_tokens ?? 0) + (res.usage?.cache_creation_input_tokens ?? 0) + (res.usage?.cache_read_input_tokens ?? 0), res.usage?.output_tokens ?? 0);
       const text = res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");

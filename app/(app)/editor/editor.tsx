@@ -1,10 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { SAFE_FONTS, SOCIAL_NETWORKS, SignatureDocSchema, TEMPLATE_IDS, type Block, type SignatureDoc, type TemplateId } from "@/lib/schema/document";
+import { SAFE_FONTS, SOCIAL_DISPLAYS, SOCIAL_NETWORKS, SignatureDocSchema, TEMPLATE_IDS, type Block, type SignatureDoc, type TemplateId } from "@/lib/schema/document";
 import { renderToEmailHtml } from "@/lib/renderer/email-html";
 import { TEMPLATE_META } from "@/lib/templates";
 import { getPreset } from "@/lib/presets";
@@ -13,6 +14,7 @@ import { clearDraft, getStorage, loadDraft, saveDraft, type Draft } from "@/lib/
 import { pickFieldKey } from "@/lib/editor/preview-map";
 import { copyHtmlRich, downloadHtm } from "@/lib/export-client";
 import { GmailPush } from "@/components/gmail-push";
+import { ImageLibrary } from "./image-library";
 import { fitBanner, toAssetInfo, uploadImage } from "@/lib/editor/upload";
 import { canCrop } from "@/lib/editor/crop";
 import { ImageCropper } from "@/components/image-cropper";
@@ -29,6 +31,8 @@ import { exportHtml } from "@/lib/editor/export-html";
 import { insertDisclaimer } from "@/lib/disclaimers";
 import { DisclaimerPicker } from "@/components/disclaimer-picker";
 import { PolishDeliverBanner } from "@/app/(app)/polish/deliver-banner";
+import { canRedo, canUndo, commit, createHistory, redo, reset, undo, type History } from "@/lib/editor/history";
+import { DesignWorkspace } from "./design-workspace";
 
 const MAX_BLOCKS = 30;
 const AUTOSAVE_MS = 400;
@@ -77,7 +81,7 @@ function rememberOriginal(key: string, file: File) {
   while (ORIGINALS.size > MAX_ORIGINALS) ORIGINALS.delete(ORIGINALS.keys().next().value as string);
 }
 
-function Field({ spec, value, error, id, onChange, onUpload, crop, gif }: { spec: FieldSpec; value: unknown; error?: string; id: string; onChange: (v: string) => void; onUpload?: (file: File) => Promise<string | void>; crop?: CropSpec; gif?: GifSpec }) {
+function Field({ spec, value, error, id, onChange, onUpload, onLibrary, crop, gif }: { spec: FieldSpec; value: unknown; error?: string; id: string; onChange: (v: string) => void; onUpload?: (file: File) => Promise<string | void>; onLibrary?: (url: string, info: AssetInfo) => void; crop?: CropSpec; gif?: GifSpec }) {
   const v = value === undefined || value === null ? "" : String(value);
   const [busy, setBusy] = useState(false);
   const [upErr, setUpErr] = useState("");
@@ -139,6 +143,7 @@ function Field({ spec, value, error, id, onChange, onUpload, crop, gif }: { spec
             {busy ? "Uploading…" : "Upload image"}
             <input type="file" accept="image/png,image/jpeg,image/gif" className="sr-only" disabled={busy} onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} />
           </label>
+          {onLibrary && <ImageLibrary current={v} onPick={onLibrary} />}
           {crop && hasOriginal && !busy && (
             <button type="button" className="btn w-full" onClick={() => { const o = ORIGINALS.get(id); if (o) setCropFile(o); else setHasOriginal(false); }}>Re-crop last image</button>
           )}
@@ -182,7 +187,7 @@ function Field({ spec, value, error, id, onChange, onUpload, crop, gif }: { spec
 
 /** Crop settings for an image slot: a photo or logo is cropped square, a banner to its own shape. */
 function cropFor(block: Block): CropSpec | undefined {
-  if (block.type === "avatar") return { aspect: 1, shape: block.shape, purpose: "avatar" };
+  if (block.type === "avatar") return { aspect: block.height ? block.size / block.height : 1, shape: block.shape, purpose: "avatar" };
   if (block.type === "banner") {
     const aspect = Number(block.width) / Number(block.height);
     return { aspect: Number.isFinite(aspect) && aspect > 0 ? aspect : 4, shape: "square", purpose: "banner" };
@@ -222,10 +227,26 @@ function BlockCard({
       </div>
       {isOpen && (
         <div id={`blk-${id}`} className="space-y-4 border-t border-line p-4">
+          <BlockFields id={id} index={index} block={block} errors={errors} canUpload={canUpload} gifEnabled={gifEnabled} onAsset={onAsset} onPatch={onPatch} />
+        </div>
+      )}
+    </li>
+  );
+}
+
+/** The content fields of one block (text, images with upload/crop/GIF, social links). Used by the block card and the design inspector. */
+export function BlockFields({ id, index, block, errors, canUpload, gifEnabled, onAsset, onPatch }: {
+  id: string; index: number; block: Block; errors: Errors; canUpload: boolean; gifEnabled: boolean; onAsset: (url: string, info: AssetInfo) => void; onPatch: (patch: Record<string, unknown>) => void;
+}) {
+  return (
+    <>
+          {block.type === "spacer" && <p className="text-sm text-muted">Empty vertical space. Set its height in the Design view.</p>}
           {block.type === "divider" && <p className="text-sm text-muted">A thin accent-colored line. Nothing to edit.</p>}
           {block.type === "social" ? (
-            <SocialEditor block={block} index={index} errors={errors} onChange={(links) => onPatch({ links })} />
-          ) : block.type !== "divider" ? (
+            <SocialEditor block={block} index={index} errors={errors} onChange={(links) => onPatch({ links })} onDisplay={(display) => onPatch({ display })} />
+          ) : block.type === "row" ? (
+            <p className="text-sm text-muted">A row of columns. Editing rows arrives in the Design view in a later update; it exports and previews as saved.</p>
+          ) : block.type !== "divider" && block.type !== "spacer" ? (
             FIELDS[block.type].map((spec) => (
               <Field
                 key={spec.key}
@@ -236,6 +257,14 @@ function BlockCard({
                 onChange={(v) => onPatch({ [spec.key]: cleanValue(spec.kind, v) })}
                 crop={canUpload && spec.upload ? cropFor(block) : undefined}
                 gif={canUpload && spec.upload && block.type === "banner" ? { enabled: gifEnabled, width: Number(block.width) || 400, height: Number(block.height) || 100 } : undefined}
+                onLibrary={
+                  canUpload && spec.upload
+                    ? (url, info) => {
+                        onAsset(url, info);
+                        onPatch({ [spec.key]: url, ...(block.type === "banner" ? fitBanner(info.width, info.height) : {}) });
+                      }
+                    : undefined
+                }
                 onUpload={
                   canUpload && spec.upload
                     ? async (file) => {
@@ -249,9 +278,7 @@ function BlockCard({
               />
             ))
           ) : null}
-        </div>
-      )}
-    </li>
+    </>
   );
 }
 
@@ -291,7 +318,12 @@ export function Editor({ initial, explicit, aiNotice = false, saved, canSave = f
   const dirtyRef = useRef(dirty);
   const savedDocRef = useRef<SignatureDoc | null>(saved?.doc ?? null); // what "Start over" returns to once the signature is saved
 
-  const replace = useCallback((next: State, isDirty: boolean) => {
+  // Undo/redo for the design view. Loading a draft or reverting starts a fresh history; every edit through `update` is a step.
+  const histRef = useRef<History<State>>(createHistory(state));
+  const [view, setView] = useState<"design" | "form">("design");
+
+  const replace = useCallback((next: State, isDirty: boolean, keepHistory = false) => {
+    if (!keepHistory && !isDirty) histRef.current = reset(next);
     stateRef.current = next;
     dirtyRef.current = isDirty;
     setState(next);
@@ -300,7 +332,27 @@ export function Editor({ initial, explicit, aiNotice = false, saved, canSave = f
     if (isDirty && window.location.search) window.history.replaceState(window.history.state, "", window.location.pathname);
   }, []);
 
-  const update = useCallback((fn: (s: State) => State) => replace(fn(stateRef.current), true), [replace]);
+  const update = useCallback(
+    (fn: (s: State) => State, key?: string) => {
+      const next = fn(stateRef.current);
+      if (next === stateRef.current) return;
+      histRef.current = commit(histRef.current, next, key);
+      replace(next, true, true);
+    },
+    [replace],
+  );
+  const onUndo = useCallback(() => {
+    const h = undo(histRef.current);
+    if (h === histRef.current) return;
+    histRef.current = h;
+    replace(h.present, true, true);
+  }, [replace]);
+  const onRedo = useCallback(() => {
+    const h = redo(histRef.current);
+    if (h === histRef.current) return;
+    histRef.current = h;
+    replace(h.present, true, true);
+  }, [replace]);
 
   /* --- draft: restore on mount --- */
   useEffect(() => {
@@ -388,7 +440,7 @@ export function Editor({ initial, explicit, aiNotice = false, saved, canSave = f
 
   /* --- block operations --- */
   const setBlock = (i: number, patch: Record<string, unknown>) =>
-    update((s) => ({ ...s, doc: { ...s.doc, blocks: s.doc.blocks.map((b, j) => (j === i ? ({ ...b, ...patch } as Block) : b)) } }));
+    update((s) => ({ ...s, doc: { ...s.doc, blocks: s.doc.blocks.map((b, j) => (j === i ? ({ ...b, ...patch } as Block) : b)) } }), `block:${stateRef.current.ids[i]}:${Object.keys(patch).join(",")}`);
 
   const reorder = (from: number, to: number) =>
     update((s) => {
@@ -503,10 +555,8 @@ export function Editor({ initial, explicit, aiNotice = false, saved, canSave = f
   const theme = doc.theme;
   const unsaved = !savedSnap || savedSnap.doc !== JSON.stringify(doc) || savedSnap.name !== (sigName.trim() || "Untitled signature");
 
-  return (
-    <div className="grid gap-6 lg:grid-cols-[400px_1fr]">
-      {/* ---------- controls ---------- */}
-      <div className="min-w-0 space-y-5">
+  const notices = (
+    <>
         {polishId && <PolishDeliverBanner requestId={polishId} doc={valid && current ? current.parsed : null} />}
         {showAiNotice && (
           <div role="status" data-testid="ai-notice" className="card flex items-start justify-between gap-3 border-accent bg-accent-soft p-4 text-sm">
@@ -525,7 +575,9 @@ export function Editor({ initial, explicit, aiNotice = false, saved, canSave = f
             </span>
           </div>
         )}
-
+    </>
+  );
+  const saveSection = (
         <section className="card space-y-3 p-5" aria-label="Save">
           {canSave ? (
             <>
@@ -540,15 +592,15 @@ export function Editor({ initial, explicit, aiNotice = false, saved, canSave = f
                 <p role="status" aria-live="polite" data-testid="account-save-note" className="text-sm text-muted">
                   {saveMsg || (!valid ? "Fix the highlighted fields to save." : unsaved ? (savedId ? "Unsaved changes." : "Not saved to your account yet.") : "All changes saved.")}
                 </p>
+                {savedId && !unsaved && <Link href="/create" className="text-sm font-medium underline underline-offset-2">Create another signature</Link>}
               </div>
             </>
           ) : (
             <p className="text-sm text-muted">Saving to an account is not set up yet. Your edits stay on this device.</p>
           )}
         </section>
-
-        <AutofillPanel doc={doc} onApply={onAutofill} />
-
+  );
+  const themeSection = (
         <section className="card space-y-4 p-5" aria-label="Template and theme">
           <div className="flex flex-col gap-1.5">
             <label htmlFor="tpl" className="text-sm font-medium">Template layout</label>
@@ -579,6 +631,120 @@ export function Editor({ initial, explicit, aiNotice = false, saved, canSave = f
             </div>
           </div>
         </section>
+  );
+  const compatSection = issues ? (
+    <CompatPanel issues={issues} onFix={onFix} onFixAll={onFixAll} onSelect={onShowBlock} doc={current?.parsed} />
+  ) : (
+    <p className="card p-5 text-sm text-muted">Fix the highlighted fields to run the compatibility check.</p>
+  );
+  const exportBar = (
+    <>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button className="btn btn-primary" onClick={onCopy} disabled={!valid}>Copy as rich text</button>
+          <button className="btn" disabled={!valid} onClick={onDownload}>Download .htm</button>
+        </div>
+        <p role="status" aria-live="polite" className="mt-3 min-h-5 text-sm text-muted">{status}</p>
+        <GmailPush doc={valid && current ? current.parsed : null} returnTo="/editor" />
+    </>
+  );
+  const viewToggle = (
+    <div role="group" aria-label="Editor view" className="flex gap-1 self-start rounded-lg border border-line p-0.5 text-sm">
+      {(["design", "form"] as const).map((v) => (
+        <button key={v} type="button" aria-pressed={view === v} onClick={() => setView(v)} className={`min-h-9 rounded-md px-3 font-medium ${view === v ? "bg-accent-soft text-accent" : "text-muted hover:text-ink"}`}>
+          {v === "design" ? "Design" : "Form"}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (view === "design") {
+    return (
+      <DesignWorkspace
+        state={state}
+        update={update}
+        snapshot={snapshot}
+        valid={valid}
+        client={client}
+        setClient={setClient}
+        dark={dark}
+        setDark={setDark}
+        canUndo={canUndo(histRef.current)}
+        canRedo={canRedo(histRef.current)}
+        onUndo={onUndo}
+        onRedo={onRedo}
+        notices={notices}
+        header={
+          <>
+            <a href="/signatures" aria-label="Back to my signatures" className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-ink">←</a>
+            {canSave ? (
+              <>
+                <label htmlFor="sig-name" className="sr-only">Signature name</label>
+                <input id="sig-name" className="field h-9 w-40 px-2 text-sm font-medium sm:w-56" maxLength={80} placeholder="Untitled signature" value={sigName} onChange={(e) => setSigName(e.target.value)} />
+              </>
+            ) : (
+              <span className="text-sm font-semibold">SignCraft editor</span>
+            )}
+            {viewToggle}
+          </>
+        }
+        actions={
+          <>
+            <p role="status" aria-live="polite" data-testid="account-save-note" className="hidden max-w-48 truncate text-xs text-muted xl:block">
+              {saveMsg || status || (!valid ? "Fix the highlighted fields to save." : canSave ? (unsaved ? "Unsaved changes" : "All changes saved") : "Edits stay on this device")}
+            </p>
+            <button className="btn" disabled={!valid} onClick={onDownload}>Download .htm</button>
+            <button className="btn" onClick={onCopy} disabled={!valid}>Copy</button>
+            {canSave && (
+              <button className="btn btn-primary" onClick={onSave} disabled={!valid || saving || !unsaved}>
+                {saving ? "Saving…" : savedId ? "Save" : "Save signature"}
+              </button>
+            )}
+          </>
+        }
+        signaturePanel={
+          <>
+            {themeSection}
+            <AutofillPanel doc={doc} onApply={onAutofill} />
+            <DisclaimerPicker hasDisclaimer={doc.blocks.some((b) => b.type === "disclaimer")} onInsert={onInsertDisclaimer} />
+            <div className="flex items-center justify-between gap-3 text-sm text-muted">
+              <p role="status" aria-live="polite" data-testid="save-note">{saveNote || (localDrafts ? "Edits are saved on this device as you type." : "")}</p>
+              <button className="btn" onClick={startOver}>Start over</button>
+            </div>
+          </>
+        }
+        checkPanel={
+          <>
+            {compatSection}
+            <GmailPush doc={valid && current ? current.parsed : null} returnTo="/editor" />
+          </>
+        }
+        renderContent={(i) => (
+          <BlockFields
+            id={ids[i]}
+            index={i}
+            block={doc.blocks[i]}
+            errors={errors}
+            canUpload={canUpload}
+            gifEnabled={gifEnabled}
+            onAsset={(url, info) => setAssets((a) => ({ ...a, [url]: info }))}
+            onPatch={(patch) => setBlock(i, patch)}
+          />
+        )}
+      />
+    );
+  }
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-[400px_1fr]">
+      {/* ---------- controls ---------- */}
+      <div className="min-w-0 space-y-5">
+{notices}
+
+{saveSection}
+
+        <AutofillPanel doc={doc} onApply={onAutofill} />
+
+{themeSection}
 
         <section aria-label="Blocks" className="space-y-3">
           <h2 className="text-sm font-semibold">Blocks</h2>
@@ -617,11 +783,7 @@ export function Editor({ initial, explicit, aiNotice = false, saved, canSave = f
 
         <DisclaimerPicker hasDisclaimer={doc.blocks.some((b) => b.type === "disclaimer")} onInsert={onInsertDisclaimer} />
 
-        {issues ? (
-          <CompatPanel issues={issues} onFix={onFix} onFixAll={onFixAll} onSelect={onShowBlock} doc={current?.parsed} />
-        ) : (
-          <p className="card p-5 text-sm text-muted">Fix the highlighted fields to run the compatibility check.</p>
-        )}
+{compatSection}
 
         <div className="flex items-center justify-between gap-3 text-sm text-muted">
           <p role="status" aria-live="polite" data-testid="save-note">{saveNote || (localDrafts ? "Edits are saved on this device as you type." : "")}</p>
@@ -656,24 +818,28 @@ export function Editor({ initial, explicit, aiNotice = false, saved, canSave = f
             {issues && <> <a href="#compat-h" className="font-medium text-accent underline underline-offset-4">Compatibility {scoreOf(issues)}/100</a></>}
           </p>
         </section>
-        <div className="mt-4 flex flex-wrap gap-3">
-          <button className="btn btn-primary" onClick={onCopy} disabled={!valid}>Copy as rich text</button>
-          <button className="btn" disabled={!valid} onClick={onDownload}>Download .htm</button>
-        </div>
-        <p role="status" aria-live="polite" className="mt-3 min-h-5 text-sm text-muted">{status}</p>
-        <GmailPush doc={valid && current ? current.parsed : null} returnTo="/editor" />
+{exportBar}
       </div>
     </div>
   );
 }
 
-type Link = { network: (typeof SOCIAL_NETWORKS)[number]; url: string };
+type Link = { network: (typeof SOCIAL_NETWORKS)[number]; url: string; icon?: string };
 
-function SocialEditor({ block, index, errors, onChange }: { block: Extract<Block, { type: "social" }>; index: number; errors: Errors; onChange: (links: Link[]) => void }) {
+function SocialEditor({ block, index, errors, onChange, onDisplay }: { block: Extract<Block, { type: "social" }>; index: number; errors: Errors; onChange: (links: Link[]) => void; onDisplay: (d: (typeof SOCIAL_DISPLAYS)[number] | undefined) => void }) {
   const links = block.links as Link[];
   const set = (j: number, patch: Partial<Link>) => onChange(links.map((l, k) => (k === j ? { ...l, ...patch } : l)));
   return (
     <div className="space-y-4">
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor={`f-${index}-display`} className="text-sm font-medium">Show as</label>
+        <select id={`f-${index}-display`} className="field" value={block.display ?? ""} onChange={(e) => onDisplay((e.target.value || undefined) as (typeof SOCIAL_DISPLAYS)[number] | undefined)}>
+          <option value="">Template default</option>
+          <option value="icon">Icons only</option>
+          <option value="icon-text">Icons with text</option>
+          <option value="text">Text only</option>
+        </select>
+      </div>
       {links.map((l, j) => {
         const err = errors[`blocks.${index}.links.${j}.url`];
         const id = `f-${index}-link-${j}`;
@@ -689,6 +855,19 @@ function SocialEditor({ block, index, errors, onChange }: { block: Extract<Block
               <label htmlFor={id} className="text-sm font-medium">URL</label>
               <input id={id} className="field w-full" value={l.url} aria-invalid={!!err} aria-describedby={err ? `${id}-err` : undefined} onChange={(e) => set(j, { url: e.target.value })} />
               {err && <p id={`${id}-err`} className="text-xs text-red-600 dark:text-red-400">{err}</p>}
+            </div>
+            <div className="mt-6 flex items-center gap-1.5">
+              {l.icon && <img src={l.icon} alt="" width={28} height={28} className="h-7 w-7 rounded object-cover" />}
+              <label className="btn cursor-pointer whitespace-nowrap" title="Use your own icon image for this link">
+                {l.icon ? "Change icon" : "Upload icon"}
+                <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="sr-only" aria-label={`Upload ${l.network} icon`} onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!file) return;
+                  try { set(j, { icon: (await uploadImage(file, "avatar")).url }); } catch (err) { alert(err instanceof Error ? err.message : "Could not upload that icon."); }
+                }} />
+              </label>
+              {l.icon && <button className="btn" onClick={() => set(j, { icon: undefined })}>Reset</button>}
             </div>
             <button className={`${iconBtn} mt-6`} aria-label={`Remove ${l.network} link`} onClick={() => onChange(links.filter((_, k) => k !== j))}>{TRASH}</button>
           </div>

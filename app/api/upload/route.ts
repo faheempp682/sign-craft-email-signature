@@ -4,6 +4,7 @@ import { LIMITS, UPLOAD_PURPOSES, type UploadPurpose } from "@/lib/storage/rules
 import { UploadError, processUpload } from "@/lib/storage/process";
 import { getBunnyConfig, uploadToBunny } from "@/lib/storage/bunny";
 import { pickFacts } from "@/lib/editor/upload";
+import { userFolder } from "@/lib/storage/folder";
 
 export const runtime = "nodejs";
 
@@ -58,7 +59,7 @@ export async function POST(req: Request) {
   if ((count ?? 0) >= MAX_ASSETS_PER_USER) return json({ error: "quota", message: `You have reached the limit of ${MAX_ASSETS_PER_USER} uploaded images.` }, 429);
 
   const { data, ext, info, notes, warnings } = processed;
-  const path = `${user.id}/${randomUUID()}.${ext}`;
+  const path = `${userFolder(user)}/${randomUUID()}.${ext}`;
   let url: string;
   try {
     url = await uploadToBunny(cfg, path, data);
@@ -85,4 +86,17 @@ export async function POST(req: Request) {
   if (error) console.error("[upload] asset row failed:", error.message); // the image is live either way; the row is bookkeeping
 
   return json({ url, ...info, notes, warnings });
+}
+
+/** The signed-in user's uploaded images, newest first, for the editor's "Your images" picker. */
+export async function GET() {
+  const g = await requireUser({ unauthorized: "Sign in to see your images." });
+  if (!g.ok) return g.response;
+  const { data, error } = await g.ctx.supabase
+    .from("assets")
+    .select("url, type, size, width, height, animated, original_size")
+    .order("created_at", { ascending: false })
+    .limit(60);
+  if (error) return json({ error: "db", message: "Could not load your images." }, 500);
+  return json({ images: data ?? [] });
 }

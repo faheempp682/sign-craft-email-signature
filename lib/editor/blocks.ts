@@ -1,9 +1,10 @@
 import type { Block } from "@/lib/schema/document";
 
-export const BLOCK_TYPES = ["identity", "contact", "avatar", "social", "banner", "divider", "disclaimer"] as const;
+export const BLOCK_TYPES = ["identity", "contact", "avatar", "social", "banner", "divider", "disclaimer", "text", "button", "spacer"] as const;
 export type BlockType = (typeof BLOCK_TYPES)[number];
 
-export const BLOCK_LABEL: Record<BlockType, string> = {
+export const BLOCK_LABEL: Record<Block["type"], string> = {
+  row: "Row & columns",
   identity: "Name & title",
   contact: "Contact details",
   avatar: "Photo / logo",
@@ -11,6 +12,9 @@ export const BLOCK_LABEL: Record<BlockType, string> = {
   banner: "Banner",
   divider: "Divider",
   disclaimer: "Disclaimer",
+  text: "Text",
+  button: "Button / CTA",
+  spacer: "Spacing",
 };
 
 export function createBlock(type: BlockType): Block {
@@ -29,6 +33,12 @@ export function createBlock(type: BlockType): Block {
       return { type };
     case "disclaimer":
       return { type, text: "" };
+    case "text":
+      return { type, text: "Your text", variant: "body" };
+    case "button":
+      return { type, label: "Book a call", href: "https://example.com/" };
+    case "spacer":
+      return { type, height: 12 };
   }
 }
 
@@ -42,7 +52,7 @@ export type FieldSpec = {
   upload?: boolean;
 };
 
-export const FIELDS: Record<Exclude<BlockType, "social" | "divider">, FieldSpec[]> = {
+export const FIELDS: Record<Exclude<BlockType, "social" | "divider" | "spacer">, FieldSpec[]> = {
   identity: [
     { key: "name", label: "Name", kind: "text" },
     { key: "title", label: "Job title", kind: "text" },
@@ -69,6 +79,14 @@ export const FIELDS: Record<Exclude<BlockType, "social" | "divider">, FieldSpec[
     { key: "track", label: "Track clicks on this banner", kind: "toggle", hint: "Counts clicks in Admin > Analytics. Needs a saved signature and click tracking set up by an admin." },
   ],
   disclaimer: [{ key: "text", label: "Text", kind: "textarea" }],
+  text: [
+    { key: "text", label: "Text", kind: "textarea" },
+    { key: "variant", label: "Style", kind: "select", options: ["body", "heading"] },
+  ],
+  button: [
+    { key: "label", label: "Button label", kind: "text" },
+    { key: "href", label: "Link", kind: "text" },
+  ],
 };
 
 /** Blank text inputs become `undefined` so optional schema fields stay valid. */
@@ -77,3 +95,22 @@ export function cleanValue(kind: FieldSpec["kind"], raw: string): string | numbe
   if (kind === "number") return raw === "" ? undefined : Number(raw);
   return raw === "" ? undefined : raw;
 }
+
+/** The "Add element" palette. Phone / email / website are single-field contact blocks, so every element is one real block in the document. */
+export type ElementPreset = { id: string; label: string; make: () => Block };
+export const ELEMENT_PRESETS: ElementPreset[] = [
+  { id: "text", label: "Text", make: () => createBlock("text") },
+  { id: "heading", label: "Heading", make: () => ({ type: "text", text: "Heading", variant: "heading", layer: "Heading" }) },
+  { id: "logo", label: "Logo", make: () => ({ type: "avatar", src: "https://placehold.co/160x160.png", alt: "Company logo", shape: "square", size: 64, layer: "Logo" }) },
+  { id: "profile", label: "Profile image", make: () => ({ ...(createBlock("avatar") as Extract<Block, { type: "avatar" }>), layer: "Profile image" }) },
+  { id: "contact", label: "Contact info", make: () => ({ type: "contact", phone: "+1 555 0100", email: "you@example.com", layer: "Contact info" }) },
+  { id: "phone", label: "Phone", make: () => ({ type: "contact", phone: "+1 555 0100", layer: "Phone" }) },
+  { id: "email", label: "Email", make: () => ({ type: "contact", email: "you@example.com", layer: "Email" }) },
+  { id: "website", label: "Website", make: () => ({ type: "contact", website: "example.com", layer: "Website" }) },
+  { id: "social", label: "Social icons", make: () => createBlock("social") },
+  { id: "divider", label: "Divider", make: () => createBlock("divider") },
+  { id: "banner", label: "Banner", make: () => createBlock("banner") },
+  { id: "button", label: "Button / CTA", make: () => createBlock("button") },
+  { id: "spacing", label: "Custom spacing", make: () => createBlock("spacer") },
+  { id: "disclaimer", label: "Disclaimer", make: () => ({ type: "disclaimer", text: "This email is confidential.", layer: "Disclaimer" }) },
+];

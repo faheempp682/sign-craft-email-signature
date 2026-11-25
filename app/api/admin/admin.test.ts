@@ -5,6 +5,8 @@ type Q = { table: string; op?: string; args?: unknown[]; filters: unknown[][] };
 const state = vi.hoisted(() => ({
   user: { id: "admin-1", email: "boss@example.com", email_confirmed_at: "x" } as null | { id: string; email: string; email_confirmed_at: string },
   role: "admin" as string,
+  /** What the database says is_admin() is: true only for an admin of the default organization. */
+  platform: true,
   queries: [] as { table: string; op?: string; args?: unknown[]; filters: unknown[][] }[],
   /** Decides what the database answers for each query. */
   answer: (() => ({ data: null, error: null })) as (q: { table: string; op?: string; args?: unknown[]; filters: unknown[][] }) => { data: unknown; error: unknown },
@@ -39,7 +41,7 @@ function builder(table: string) {
 vi.mock("@/lib/supabase/server", () => {
   const client = {
     from: (table: string) => builder(table),
-    rpc: async (fn: string) => (fn === "current_app_role" ? { data: state.role, error: null } : { data: null, error: null }),
+    rpc: async (fn: string) => (fn === "current_app_role" ? { data: state.role, error: null } : fn === "is_admin" ? { data: state.platform, error: null } : { data: null, error: null }),
   };
   return { createClient: async () => client, getUser: async () => state.user };
 });
@@ -59,6 +61,7 @@ const writes = () => state.queries.filter((q) => q.op && q.op !== "select");
 beforeEach(() => {
   state.user = { id: "admin-1", email: "boss@example.com", email_confirmed_at: "x" };
   state.role = "admin";
+  state.platform = true;
   state.queries = [];
   state.answer = () => ({ data: null, error: null });
   delete process.env.ADMIN_EMAILS;
@@ -84,6 +87,15 @@ describe.each(ROUTES)("%s: access control", (_n, handler, method, body) => {
 
   it.each(["member", "designer"])("is 403 for a %s, and writes nothing", async (role) => {
     state.role = role;
+    const res = await call(handler, method, body);
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ error: "forbidden" });
+    expect(writes()).toHaveLength(0);
+  });
+
+  it("is 403 for an admin of another organization who is not a platform admin, and writes nothing", async () => {
+    state.role = "admin";
+    state.platform = false;
     const res = await call(handler, method, body);
     expect(res.status).toBe(403);
     expect(await res.json()).toMatchObject({ error: "forbidden" });

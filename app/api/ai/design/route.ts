@@ -4,8 +4,8 @@ import { openAiGate, type AiGate } from "@/lib/authz/ai-gate";
 
 export const runtime = "nodejs";
 
-/** Per PROJECT.md: Haiku drafts JSON specs. Override with ANTHROPIC_MODEL (e.g. a bigger model for richer designs). */
-const MODEL = process.env.ANTHROPIC_MODEL || "claude-haiku-5-5";
+/** Design quality is where the product wins, so it defaults to Sonnet. Set ANTHROPIC_MODEL=claude-haiku-5-5 to cut cost. */
+const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5";
 
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
 
@@ -45,7 +45,7 @@ async function handle(req: Request, gate: AiGate): Promise<Response> {
     const res = await client.messages.create({
       model: MODEL,
       max_tokens: 4000,
-      system,
+      system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }], // fixed instructions: cached after the first call
       messages,
       output_config: { effort: "low" }, // a JSON spec needs little reasoning; keeps it fast and cheap
     });
