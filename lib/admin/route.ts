@@ -2,21 +2,8 @@ import type { z } from "zod";
 import { deny, requireRole, type Guard, type UserCtx } from "@/lib/authz/guard";
 import type { Role } from "@/lib/authz/roles";
 
-/**
- * A browser sends an Origin header on cross-site writes. If it is present and is not this site, refuse: a page on
- * another domain must not be able to make an admin's browser change settings. (Requests with no Origin, such as
- * curl, still need the admin's session cookie, so they are no easier to forge.)
- */
-export function sameOrigin(req: Request): boolean {
-  const origin = req.headers.get("origin");
-  if (!origin) return true;
-  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? new URL(req.url).host;
-  try {
-    return new URL(origin).host === host;
-  } catch {
-    return false;
-  }
-}
+export { sameOrigin } from "@/lib/authz/origin";
+import { sameOrigin } from "@/lib/authz/origin";
 
 /** Origin check, then admin check, then JSON body validation. Every admin write goes through this. */
 export async function adminRequest<S extends z.ZodType>(req: Request, schema: S): Promise<Guard<{ ctx: UserCtx & { role: Role }; data: z.infer<S> }>> {
