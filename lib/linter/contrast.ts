@@ -6,6 +6,13 @@ const toRgb = (hex: string): [number, number, number] => {
 const toHex = ([r, g, b]: [number, number, number]) =>
   `#${[r, g, b].map((v) => Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, "0")).join("")}`.toUpperCase();
 
+/** `a` moved `t` (0 to 1) of the way toward `b`, both #RRGGBB. */
+export function mixHex(a: string, b: string, t: number): string {
+  const x = toRgb(a);
+  const y = toRgb(b);
+  return toHex(x.map((v, i) => v + (y[i] - v) * t) as [number, number, number]);
+}
+
 /** WCAG 2.x relative luminance of a #RRGGBB colour. */
 export function luminance(hex: string): number {
   const [r, g, b] = toRgb(hex).map((v) => {

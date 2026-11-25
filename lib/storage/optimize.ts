@@ -1,5 +1,6 @@
 import sharp, { type Metadata } from "sharp";
 import type { ImageInfo } from "./image";
+import { collectFacts } from "./facts";
 import { LIMITS, formatBytes, type AssetInfo, type UploadPurpose } from "./rules";
 
 export type OptimizeResult = {
@@ -30,6 +31,12 @@ const open = (input: Uint8Array, animated: boolean) => sharp(input, { animated, 
  * Anything still over a guideline afterwards is reported by `assetWarnings`, not hidden.
  */
 export async function optimizeImage(input: Uint8Array, sniffed: ImageInfo, purpose: UploadPurpose): Promise<OptimizeResult> {
+  const r = await optimizeCore(input, sniffed, purpose);
+  // Record facts about what is actually stored (frame count, timing, first-frame completeness, transparency) for the checker.
+  return { ...r, info: { ...r.info, ...(await collectFacts(r.data, r.info)) } };
+}
+
+async function optimizeCore(input: Uint8Array, sniffed: ImageInfo, purpose: UploadPurpose): Promise<OptimizeResult> {
   // Fail fast on the size the header declares, before any decoding work.
   if (sniffed.width * sniffed.height > LIMITS.maxPixels) throw new ImageProcessError("too_many_pixels", "That image has too many pixels. Resize it to under about 7000×7000 and try again.");
 

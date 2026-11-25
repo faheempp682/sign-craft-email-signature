@@ -1,15 +1,25 @@
 import type { Block, SignatureDoc } from "@/lib/schema/document";
 import { adjustToContrast, contrast } from "./contrast";
 import { aspectMismatch, assetWarnings, type AssetInfo } from "@/lib/storage/rules";
+import { accessibilityIssues } from "@/lib/a11y";
+import { darkIssues } from "./dark-rules";
+import { PLAIN_TEMPLATES, WHITE } from "./surface";
 
 /** Facts about uploaded images, keyed by their public URL. Kept outside the document so the JSON model never changes. */
 export type AssetMap = Record<string, AssetInfo>;
 
 export type Severity = "error" | "warning" | "info";
 
+/** compat: will it render. accessibility: can everyone read and use it. dark: dark-mode readability. gif: animated GIF behaviour. */
+export type IssueCategory = "compat" | "accessibility" | "dark" | "gif";
+export const CATEGORIES: IssueCategory[] = ["compat", "accessibility", "dark", "gif"];
+
 export type Issue = {
   /** Stable rule id plus the block it applies to, e.g. "avatar-alt:2". */
   id: string;
+  category: IssueCategory;
+  /** Fixes marked optIn trade something off (for example light-mode look for dark-mode safety), so "Fix all" skips them. */
+  optIn?: boolean;
   severity: Severity;
   message: string;
   blockIndex?: number;
@@ -23,9 +33,6 @@ export type Issue = {
 
 const PLACEHOLDER_HOSTS = ["placehold.co", "placeholder.com", "via.placeholder.com", "dummyimage.com", "picsum.photos", "example.com", "example.org"];
 const BAD_IMAGE_EXT = /\.(svg|webp|avif|bmp|tiff?|ico|heic)(\?|#|$)/i;
-const WHITE = "#FFFFFF";
-/** Templates that ignore theme.bg (see ThemeSchema); everything else draws a card in that colour. */
-const PLAIN_TEMPLATES = new Set<string>(["classic", "modern-split", "minimal"]);
 
 const withBlock = (doc: SignatureDoc, i: number, patch: Record<string, unknown>): SignatureDoc => ({
   ...doc,
@@ -52,7 +59,7 @@ export function isBareProfile(url: string): boolean {
 
 export function lintDoc(doc: SignatureDoc, assets: AssetMap = {}): Issue[] {
   const issues: Issue[] = [];
-  const add = (i: Issue) => issues.push(i);
+  const add = (i: Omit<Issue, "category"> & { category?: IssueCategory }) => issues.push({ category: "compat", ...i });
   const { blocks, theme } = doc;
 
   const identityIdx = blocks.findIndex((b) => b.type === "identity");
@@ -82,9 +89,13 @@ export function lintDoc(doc: SignatureDoc, assets: AssetMap = {}): Issue[] {
       const fallback = b.type === "avatar" ? (identity?.name ?? "Profile photo") : `${identity?.company ?? identity?.name ?? "Company"} banner`;
       add({
         id: `alt-text:${i}`,
-        severity: "warning",
+        category: "accessibility",
+        severity: b.type === "banner" && b.href ? "error" : "warning",
         blockIndex: i,
-        message: `The ${label} has no alt text. People with images blocked, and screen readers, get nothing.`,
+        message:
+          `The ${label} has no alt text. People with images blocked, and screen readers, get nothing.` +
+          (b.type === "banner" && b.href ? " Because the banner is a link, a screen reader announces only \"link\" and the person cannot tell where it goes." : "") +
+          (assets[b.src]?.animated || /\.gif(\?|#|$)/i.test(b.src) ? " For an animated GIF, describe the whole message, because Outlook on Windows and screen readers cannot follow the animation." : ""),
         fixLabel: `Use "${fallback}"`,
         fix: (d) => withBlock(d, i, { alt: fallback }),
       });
@@ -96,7 +107,10 @@ export function lintDoc(doc: SignatureDoc, assets: AssetMap = {}): Issue[] {
     /* Upload findings (size, animated GIF weight, tiny images) and shape checks, from what the upload recorded. */
     const asset = assets[b.src];
     if (asset) {
-      for (const w of assetWarnings(asset)) add({ id: `asset-${w.code}:${i}`, severity: w.severity, blockIndex: i, message: `The ${label}: ${w.message}` });
+      for (const w of assetWarnings(asset, b.type)) {
+        const category: IssueCategory = w.code.startsWith("gif") ? "gif" : w.code.startsWith("dark") ? "dark" : "compat";
+        add({ id: `asset-${w.code}:${i}`, category, severity: w.severity, blockIndex: i, message: `The ${label}: ${w.message}` });
+      }
 
       if (b.type === "banner" && aspectMismatch(asset.width, asset.height, b.width, b.height)) {
         const ratio = asset.width / asset.height;
@@ -178,6 +192,7 @@ export function lintDoc(doc: SignatureDoc, assets: AssetMap = {}): Issue[] {
     const text = surfaces.reduce((c, s) => adjustToContrast(c, s), theme.text.toUpperCase());
     add({
       id: "contrast-text",
+      category: "accessibility",
       severity: worst(theme.text) < 3 ? "error" : "warning",
       message: `The text colour is hard to read (contrast ${worst(theme.text).toFixed(1)}:1, aim for 4.5:1 or more).`,
       fixLabel: `Use ${text}`,
@@ -188,6 +203,7 @@ export function lintDoc(doc: SignatureDoc, assets: AssetMap = {}): Issue[] {
     const muted = surfaces.reduce((c, s) => adjustToContrast(c, s), theme.muted.toUpperCase());
     add({
       id: "contrast-muted",
+      category: "accessibility",
       severity: "warning",
       message: `The secondary text colour is faint (contrast ${worst(theme.muted).toFixed(1)}:1, aim for 4.5:1 or more).`,
       fixLabel: `Use ${muted}`,
@@ -198,6 +214,7 @@ export function lintDoc(doc: SignatureDoc, assets: AssetMap = {}): Issue[] {
     const primary = surfaces.reduce((c, s) => adjustToContrast(c, s, 3), theme.primary.toUpperCase());
     add({
       id: "contrast-accent",
+      category: "accessibility",
       severity: "info", // often a decorative fill, so a note rather than a warning
       message: `The accent colour is faint against the background (contrast ${worst(theme.primary).toFixed(1)}:1). Fine for decoration, but avoid it for text and links.`,
       fixLabel: `Use ${primary}`,
@@ -205,21 +222,28 @@ export function lintDoc(doc: SignatureDoc, assets: AssetMap = {}): Issue[] {
     });
   }
 
+  issues.push(...accessibilityIssues(doc, assets), ...darkIssues(doc, assets));
   return issues;
 }
 
 const PENALTY: Record<Severity, number> = { error: 20, warning: 8, info: 2 };
 
-/** 0 to 100. A clean document is 100; each error costs 20, warning 8, info 2. */
-export function scoreOf(issues: Issue[]): number {
+/** 0 to 100. A clean document is 100; each error costs 20, warning 8, info 2. Counts every category. */
+export function scoreOf<T extends { severity: Severity }>(issues: T[]): number {
   return Math.max(0, 100 - issues.reduce((sum, i) => sum + PENALTY[i.severity], 0));
 }
 
-/** Applies every available fix, re-linting between fixes so later ones see the earlier results. */
+/** One score per category (same penalties), so "will it render" and "can everyone use it" are not blended. GIF findings count toward compatibility. */
+export function scoresOf(issues: Issue[]): { overall: number; compat: number; accessibility: number; dark: number } {
+  const of = (cats: IssueCategory[]) => scoreOf(issues.filter((i) => cats.includes(i.category)));
+  return { overall: scoreOf(issues), compat: of(["compat", "gif"]), accessibility: of(["accessibility"]), dark: of(["dark"]) };
+}
+
+/** Applies every available fix except opt-in ones, re-linting between fixes so later ones see the earlier results. */
 export function applyAllFixes(doc: SignatureDoc, assets: AssetMap = {}): SignatureDoc {
   let current = doc;
   for (let n = 0; n < 25; n++) {
-    const next = lintDoc(current, assets).find((i) => i.fix);
+    const next = lintDoc(current, assets).find((i) => i.fix && !i.optIn);
     if (!next) break;
     current = next.fix!(current);
   }

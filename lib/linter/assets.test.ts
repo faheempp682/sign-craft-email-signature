@@ -20,7 +20,8 @@ const doc = (): SignatureDoc =>
   });
 
 const asset = (o: Partial<AssetInfo> = {}): AssetInfo => ({ type: "image/png", bytes: 30 * KB, width: 400, height: 100, animated: false, ...o });
-const ids = (d: SignatureDoc, a: AssetMap) => lintDoc(d, a).map((i) => i.id);
+// Dark-mode advisories (near-black text, PNG logo guidance) are tested in lib/dark; these tests are about upload findings.
+const ids = (d: SignatureDoc, a: AssetMap) => lintDoc(d, a).filter((i) => i.category !== "dark").map((i) => i.id);
 
 describe("upload findings in the compatibility checker", () => {
   it("adds nothing when no upload facts are known (pasted URLs, older images)", () => {

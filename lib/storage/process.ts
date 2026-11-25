@@ -38,7 +38,7 @@ export async function processUpload(bytes: Uint8Array, purpose: UploadPurpose): 
 
   try {
     const { data, info, notes } = await optimizeImage(bytes, sniffed, purpose);
-    return { data, ext: sniffed.ext, info, notes, warnings: assetWarnings(info) };
+    return { data, ext: sniffed.ext, info, notes, warnings: assetWarnings(info, purpose) };
   } catch (e) {
     if (e instanceof ImageProcessError) throw new UploadError(e.code === "unreadable" ? 415 : 422, e.code, e.message);
     console.error("[upload] optimize failed:", e instanceof Error ? e.message : e);
