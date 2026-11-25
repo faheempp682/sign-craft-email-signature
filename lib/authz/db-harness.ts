@@ -37,8 +37,9 @@ export async function createTestDb() {
     }
   }
 
-  /** Create an auth user (the signup trigger adds the profile and default membership). */
+  /** Create an auth user (the signup trigger adds the profile and default membership). Sign-up is invite-only (0017), so this invites the address first. */
   async function addUser(email: string): Promise<string> {
+    await db.query("insert into public.invitations (email) values (lower(btrim($1))) on conflict (email) do nothing", [email]);
     const { rows } = await db.query<{ id: string }>("insert into auth.users (email) values ($1) returning id", [email]);
     return rows[0].id;
   }

@@ -4,7 +4,7 @@ Phase 2 foundation. Everything here is enforced on the server (API routes and th
 
 ## Setup (once per Supabase project)
 
-1. Run the migrations in order in the Supabase SQL editor (or `supabase db push`): `0001_init.sql`, `0002_asset_metadata.sql`, `0003_access_control.sql`.
+1. Run the migrations in order in the Supabase SQL editor (or `supabase db push`): `0001_init.sql`, `0002_asset_metadata.sql`, `0003_access_control.sql`, then every later one (including `0017_invite_only.sql` and `0018_protect_last_platform_admin.sql`).
    `0003` creates the tables, seeds the default organization ("Kimp"), the feature flags and the AI limits, and gives every existing user a profile and a Member role.
 2. In `.env.local` (never in `.env.example`):
    - `ADMIN_EMAILS=you@company.com` (comma-separated). These people become admins the first time they use the app.
@@ -18,6 +18,22 @@ No service-role key? Promote the first admin by hand instead, in the SQL editor:
 update public.memberships set role = 'admin'
  where user_id = (select id from auth.users where email = 'you@company.com');
 ```
+
+## Sign-up is by invitation only
+
+Nobody can create an account unless an admin has invited their email address first (migration `0017_invite_only.sql`).
+
+- **Enforced in the database.** A trigger on `auth.users` refuses any address without an open invitation. Supabase's sign-up endpoint is public (it only needs the browser-safe key), so a check in our own form alone could be skipped by calling it directly. The trigger cannot be skipped.
+- **How to invite:** an admin opens **/admin/invitations**, adds the email and the role. The person opens the login page, chooses "Invited? Create your account", and sets a password. Supabase emails a confirmation link, so only the owner of the inbox can use the invitation. They arrive with the invited role in the default organization.
+- An invitation works once. Withdraw an unused one on the same page.
+- **The first admin** has nobody to invite them. Once, in the SQL editor: `insert into public.invitations (email, role) values ('you@company.com', 'admin');` then sign up on the login page like anyone else (people who already have an account need nothing).
+- Accounts added from the Supabase dashboard ("Add user" / "Invite user") or the admin API go through the same trigger, so add the invitation first or they are refused.
+- Keep **email confirmation on**. With it off, anyone could claim an invited address before its owner does.
+- `ALLOWED_EMAIL_DOMAINS` still works as an extra restriction in the sign-up form (invitations for other domains would be refused there).
+
+## Production without Supabase fails closed
+
+With no Supabase variables the app is a login-free, local-only editor. That is for a developer's machine. When `NODE_ENV=production` the private pages and APIs answer **503** until `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are set, so a missing or misspelled variable can never publish the app without a login. A deployment that really wants the login-free editor sets `ALLOW_LOCAL_MODE=true`.
 
 ## Roles
 
@@ -72,6 +88,8 @@ Routes do not do their own auth checks. Admin writes go through `adminRequest()`
 
 ## Tests
 
+- `e2e/auth.e2e.mjs` signs up, confirms, signs in and out and checks route protection in a real browser against the real Supabase project. Part 1 (logged-out access, wrong password) needs nothing else. Part 2 creates real accounts and cleans up after itself, so it needs `SUPABASE_SERVICE_ROLE_KEY` and `E2E_EMAIL_BASE` (an inbox you own) and migrations `0017` and `0018` applied. Run it with `E2E_BASE_URL=http://localhost:3100 node --test e2e/auth.e2e.mjs`.
+- `lib/authz/invite-only.db.test.ts`, `last-platform-admin.db.test.ts` and `rls-coverage.db.test.ts` (every table has row-level security, every definer function pins its search path and is closed to signed-out callers).
 - `lib/authz/db.test.ts` runs the real migrations in an in-process Postgres (PGlite) and tests the actual RLS policies and SQL functions: roles, flag resolution, limits, windows, refunds, last-admin protection.
 - `lib/authz/authz.test.ts`, `app/api/**/*.test.ts`: guards, bootstrap, route enforcement, admin API validation.
 - `app/(app)/admin/admin-ui.test.tsx`: the admin screens (jsdom).

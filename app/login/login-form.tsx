@@ -1,15 +1,16 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { signIn, signUp, type AuthState } from "./actions";
+import { authenticate, type AuthState } from "./actions";
 
 export function LoginForm({ next }: { next: string }) {
   const [mode, setMode] = useState<"in" | "up">("in");
-  const [state, action, pending] = useActionState<AuthState, FormData>(mode === "in" ? signIn : signUp, {});
+  const [state, action, pending] = useActionState<AuthState, FormData>(authenticate, {});
 
   return (
     <form action={action} className="card space-y-4 p-6">
       <input type="hidden" name="next" value={next} />
+      <input type="hidden" name="mode" value={mode} />
       <div className="flex flex-col gap-1.5">
         <label htmlFor="email" className="text-sm font-medium">Email</label>
         <input id="email" name="email" type="email" autoComplete="email" required className="field" />
@@ -17,7 +18,7 @@ export function LoginForm({ next }: { next: string }) {
       <div className="flex flex-col gap-1.5">
         <label htmlFor="password" className="text-sm font-medium">Password</label>
         <input id="password" name="password" type="password" autoComplete={mode === "in" ? "current-password" : "new-password"} minLength={mode === "up" ? 8 : undefined} required className="field" />
-        {mode === "up" && <p className="text-xs text-muted">At least 8 characters.</p>}
+        {mode === "up" && <p className="text-xs text-muted">At least 8 characters. Use the email address your invitation was sent to.</p>}
       </div>
 
       <div role="status" aria-live="polite">
@@ -26,10 +27,10 @@ export function LoginForm({ next }: { next: string }) {
       </div>
 
       <button type="submit" className="btn btn-primary w-full" disabled={pending}>
-        {pending ? "Please wait…" : mode === "in" ? "Sign in" : "Create account"}
+        {pending ? "Please wait…" : mode === "in" ? "Sign in" : "Create my account"}
       </button>
       <button type="button" className="min-h-11 w-full text-sm font-medium text-accent" onClick={() => setMode(mode === "in" ? "up" : "in")}>
-        {mode === "in" ? "No account yet? Create one" : "Already have an account? Sign in"}
+        {mode === "in" ? "Invited? Create your account" : "Already have an account? Sign in"}
       </button>
     </form>
   );

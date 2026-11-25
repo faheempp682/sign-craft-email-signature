@@ -3,7 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { isEmailAllowed, safeNext } from "@/lib/supabase/auth-utils";
+import { isEmailAllowed, safeNext, signUpError } from "@/lib/supabase/auth-utils";
 
 export type AuthState = { error?: string; message?: string };
 
@@ -13,6 +13,15 @@ const NOT_CONFIGURED: AuthState = {
 
 function credentials(form: FormData) {
   return { email: String(form.get("email") ?? "").trim(), password: String(form.get("password") ?? "") };
+}
+
+/**
+ * The login form's one action. Which of the two it does is read from the submitted form (hidden field "mode"), not from which
+ * function React was handed: swapping the action of useActionState when the person toggles between the modes could leave a
+ * later "Sign in" click running sign-up.
+ */
+export async function authenticate(prev: AuthState, form: FormData): Promise<AuthState> {
+  return form.get("mode") === "up" ? signUp(prev, form) : signIn(prev, form);
 }
 
 export async function signIn(_prev: AuthState, form: FormData): Promise<AuthState> {
@@ -36,6 +45,7 @@ export async function signUp(_prev: AuthState, form: FormData): Promise<AuthStat
   if (!email || !password) return { error: "Enter an email and a password." };
   if (password.length < 8) return { error: "Use a password of at least 8 characters." };
   if (!isEmailAllowed(email)) return { error: "Sign-ups are limited to approved company email domains." };
+  // The invitation itself is enforced by the database (it cannot be skipped by calling Supabase directly); see 0017_invite_only.sql.
 
   const h = await headers();
   const origin = h.get("origin") ?? `${h.get("x-forwarded-proto") ?? "http"}://${h.get("host")}`;
@@ -44,7 +54,7 @@ export async function signUp(_prev: AuthState, form: FormData): Promise<AuthStat
     password,
     options: { emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(safeNext(form.get("next")))}` },
   });
-  if (error) return { error: error.message };
+  if (error) return { error: signUpError(error.message) };
 
   // With email confirmation on, there is no session yet; with it off, the user is already signed in.
   if (data.session) redirect(safeNext(form.get("next")));
