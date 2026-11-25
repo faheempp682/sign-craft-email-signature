@@ -2,16 +2,17 @@ import type { z } from "zod";
 import { deny, requireFeature, requireRole, type Guard, type UserCtx } from "@/lib/authz/guard";
 import { sameOrigin } from "@/lib/authz/origin";
 import type { Feature } from "@/lib/authz/roles";
+import { readActiveOrgCookie, resolveActiveOrg } from "@/lib/org/active";
 
 export type AdminCtx = UserCtx & { orgId: string };
 
-/** Organizations the person administers, first the requested one when they are an admin of it. */
+/**
+ * The organization an admin request acts on: the one asked for in the request, else the one remembered in the
+ * "active organization" cookie, else the first organization they administer. The choice is honoured only when the
+ * database says they may administer it (directly, or as admin of its agency); see lib/org/active.ts.
+ */
 export async function adminOrg(supabase: UserCtx["supabase"], userId: string, requested?: string): Promise<string | null> {
-  const { data, error } = await supabase.from("memberships").select("org_id").eq("user_id", userId).eq("role", "admin");
-  if (error || !data?.length) return null;
-  const ids = data.map((r: { org_id: string }) => r.org_id);
-  if (requested) return ids.includes(requested) ? requested : null;
-  return ids[0];
+  return resolveActiveOrg(supabase, userId, { admin: true, requested, cookie: requested ? undefined : await readActiveOrgCookie() });
 }
 
 /**
