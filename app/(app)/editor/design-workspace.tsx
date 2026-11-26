@@ -15,6 +15,7 @@ import { RowEditor } from "./row-editor";
 import { LayersPanel, type NestedLayers } from "./layers-panel";
 import { ContextMenu, type MenuItem } from "./context-menu";
 import type { Snapshot } from "./live-preview";
+import { Select } from "@/components/ui/select";
 
 type Update = (fn: (s: EditState) => EditState, key?: string) => void;
 type Pane = "layers" | "canvas" | "properties";
@@ -347,11 +348,11 @@ export function DesignWorkspace({
         <div className="ml-auto flex items-center gap-2 [&>*]:shrink-0">
           <label className="flex items-center gap-1 text-xs text-muted">
             <span className="sr-only md:not-sr-only">Preview</span>
-            <select className="field h-9 px-2 text-sm" value={client} onChange={(e) => setClient(e.target.value as ClientId)} aria-label="Email client preview">
+            <Select className="field h-9 px-2 text-sm" value={client} onChange={(e) => setClient(e.target.value as ClientId)} aria-label="Email client preview">
               {CLIENT_IDS.map((c) => (
                 <option key={c} value={c}>{CLIENTS[c].label}</option>
               ))}
-            </select>
+            </Select>
           </label>
           <button type="button" className={tbtn} aria-pressed={dark} onClick={() => setDark(!dark)}>{dark ? "Light" : "Dark"}</button>
           {actions}
@@ -427,12 +428,12 @@ export function DesignWorkspace({
               <button type="button" className={`${zoomBtn} w-14 tabular-nums`} onClick={() => setZoom(1)} aria-label="Reset zoom to 100%" data-testid="zoom-value">{Math.round(zoom * 100)}%</button>
               <button type="button" className={zoomBtn} onClick={() => setZoom((z) => Math.min(MAX_ZOOM, +(z + 0.1).toFixed(2)))} aria-label="Zoom in">+</button>
               <span className="mx-1 h-5 w-px bg-line" aria-hidden="true" />
-              <select className="h-8 rounded-md bg-transparent px-1 text-sm text-muted" value={bg} onChange={(e) => setBg(e.target.value as CanvasBg)} aria-label="Canvas background">
+              <Select className="!min-h-8 h-8 !w-auto !rounded-md !border-transparent !bg-transparent !px-2 text-sm text-muted" value={bg} onChange={(e) => setBg(e.target.value as CanvasBg)} aria-label="Canvas background">
                 <option value="dots">Dotted</option>
                 <option value="white">White</option>
                 <option value="checker">Transparent</option>
                 <option value="gray">Gray</option>
-              </select>
+              </Select>
             </div>
           </div>
           <button type="button" aria-label="Open layers" onClick={() => setPane("layers")} className={`absolute right-3 grid h-12 w-12 place-items-center rounded-full bg-accent text-white shadow-lg lg:hidden ${block ? "bottom-36" : "bottom-20"}`}>

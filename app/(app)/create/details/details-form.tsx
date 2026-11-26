@@ -26,6 +26,7 @@ export const SOCIAL: Spec[] = [
   { key: "facebook", label: "Facebook", placeholder: "facebook.com/janecooper or janecooper" },
   { key: "youtube", label: "YouTube", placeholder: "@janecooper" },
   { key: "github", label: "GitHub", placeholder: "janecooper" },
+  { key: "tiktok", label: "TikTok", placeholder: "@janecooper" },
 ];
 /** Networks shown for every template with a social block; the others only when the template itself has them. */
 export const COMMON_SOCIAL = ["linkedin", "twitter", "instagram"];

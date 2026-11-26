@@ -6,6 +6,7 @@ import { SignatureDocSchema } from "@/lib/schema/document";
 import { BLOCK_LABEL, lockableFields, PERSON_SOURCES, type TemplateSpec } from "@/lib/team/template";
 import { call, Field, Status, useAction } from "./api";
 import { PersonPreview } from "./preview";
+import { Select } from "@/components/ui/select";
 
 type TemplateRow = { id: string; name: string; doc_json: unknown; lock_json: { editable: string[] }; field_map: Record<string, string>; departments: string[]; is_active: boolean };
 type SavedSignature = { id: string; name: string; mine: boolean };
@@ -84,22 +85,22 @@ function NewTemplate({ onCreated }: { onCreated: (id: string) => void }) {
       <div className="grid gap-4 sm:grid-cols-2">
         <Field id="nt-name" label="Name" error={nameError}><input id="nt-name" className="field w-full" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} aria-invalid={!!nameError} aria-describedby={nameError ? "nt-name-err" : undefined} /></Field>
         <Field id="nt-kind" label="Start from">
-          <select id="nt-kind" className="field w-full" value={kind} onChange={(e) => setKind(e.target.value as "preset" | "signature")}>
+          <Select id="nt-kind" className="field w-full" value={kind} onChange={(e) => setKind(e.target.value as "preset" | "signature")}>
             <option value="preset">A ready-made design</option>
             <option value="signature">One of my saved signatures</option>
-          </select>
+          </Select>
         </Field>
         {kind === "preset" ? (
           <Field id="nt-preset" label="Design">
-            <select id="nt-preset" className="field w-full" value={preset} onChange={(e) => setPreset(e.target.value)}>
+            <Select id="nt-preset" className="field w-full" value={preset} onChange={(e) => setPreset(e.target.value)}>
               {PRESETS.slice(0, 60).map((p) => <option key={p.id} value={p.id}>{p.name} ({p.category})</option>)}
-            </select>
+            </Select>
           </Field>
         ) : (
           <Field id="nt-sig" label="Saved signature" hint={saved.length === 0 ? "You have no saved signatures yet." : undefined}>
-            <select id="nt-sig" className="field w-full" value={signature} onChange={(e) => setSignature(e.target.value)} disabled={!saved.length}>
+            <Select id="nt-sig" className="field w-full" value={signature} onChange={(e) => setSignature(e.target.value)} disabled={!saved.length}>
               {saved.map((s) => <option key={s.id} value={s.id}>{s.name}{s.mine ? "" : " (from an employee)"}</option>)}
-            </select>
+            </Select>
           </Field>
         )}
         <Field id="nt-dept" label="Only for these departments (optional)" hint="Separate with commas. Leave empty for everyone without a more specific template.">
@@ -182,10 +183,10 @@ function TemplateCard({ t, open, onToggle, onChanged }: { t: TemplateRow; open: 
                         <p className="text-sm font-medium">{label}<span className="block truncate text-xs font-normal text-muted">{String((doc.blocks[f.index] as Record<string, unknown>)[f.field] ?? "") || "Empty in the design"}</span></p>
                         <div>
                           <label htmlFor={`${id}-src`} className="sr-only">{label}: fill from</label>
-                          <select id={`${id}-src`} className="field w-full" value={map[f.key] ?? ""} onChange={(e) => { const m = { ...map }; if (e.target.value) m[f.key] = e.target.value; else delete m[f.key]; setMap(m); }}>
+                          <Select id={`${id}-src`} className="field w-full" value={map[f.key] ?? ""} onChange={(e) => { const m = { ...map }; if (e.target.value) m[f.key] = e.target.value; else delete m[f.key]; setMap(m); }}>
                             <option value="">Keep the design&apos;s text</option>
                             {Object.entries(PERSON_SOURCES).map(([k, l]) => <option key={k} value={k}>From directory: {l}</option>)}
-                          </select>
+                          </Select>
                         </div>
                         <label htmlFor={`${id}-edit`} className="flex min-h-11 items-center gap-2 text-sm">
                           <input id={`${id}-edit`} type="checkbox" className="size-5" checked={editable.has(f.key)} onChange={(e) => { const s = new Set(editable); if (e.target.checked) s.add(f.key); else s.delete(f.key); setEditable(s); }} />

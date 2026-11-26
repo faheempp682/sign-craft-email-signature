@@ -304,10 +304,10 @@ describe("coming back from the advanced editor", () => {
     expect(SignatureDocSchema.safeParse(out).success).toBe(true);
   });
 
-  it("drops a link when its field is cleared but keeps networks the form has no field for", () => {
+  it("drops a link when its field is cleared but keeps the ones still filled in", () => {
     const doc = applyDetails(base.doc, jane);
     const withTiktok = { ...doc, blocks: doc.blocks.map((b) => (b.type === "social" ? { ...b, links: [...b.links, { network: "tiktok" as const, url: "https://www.tiktok.com/@jane" }] } : b)) };
-    const out = patchDetails(withTiktok, { ...jane, linkedin: "" });
+    const out = patchDetails(withTiktok, { ...jane, linkedin: "", tiktok: "jane" });
     const links = walk(out.blocks).flatMap((b) => (b.type === "social" ? b.links : []));
     expect(links.map((l) => l.network)).toContain("tiktok");
     expect(links.map((l) => l.network)).not.toContain("linkedin");

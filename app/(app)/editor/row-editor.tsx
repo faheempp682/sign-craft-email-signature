@@ -13,6 +13,7 @@ import {
 } from "@/lib/editor/row-ops";
 import { PALETTE_MIME } from "@/lib/editor/palette-drag";
 import { Color, Num } from "./design-inspector";
+import { Select } from "@/components/ui/select";
 
 type Update = (fn: (s: EditState) => EditState, key?: string) => void;
 
@@ -214,7 +215,7 @@ export function RowEditor({ row, rowPath, locked, update, onSelectNested, movabl
               </ColumnDrop>
               <label className="flex flex-col gap-1">
                 <span className="sr-only">Add element to column {ci + 1}</span>
-                <select className="field h-9 px-2 text-sm" value="" disabled={full} aria-label={`Add element to column ${ci + 1}`} onChange={(e) => { if (e.target.value) add(ci, e.target.value); e.target.value = ""; }}>
+                <Select className="field h-9 px-2 text-sm" value="" disabled={full} aria-label={`Add element to column ${ci + 1}`} onChange={(e) => { if (e.target.value) add(ci, e.target.value); e.target.value = ""; }}>
                   <option value="">{full ? `Column is full (${MAX_COLUMN_BLOCKS})` : "+ Add element…"}</option>
                   <optgroup label="Elements">
                     {ELEMENT_PRESETS.map((p) => (
@@ -233,7 +234,7 @@ export function RowEditor({ row, rowPath, locked, update, onSelectNested, movabl
                       <option key={p.id} value={`row:${p.id}`}>Row · {p.label}</option>
                     ))}
                   </optgroup>
-                </select>
+                </Select>
               </label>
 
               <details className="group">
@@ -243,11 +244,11 @@ export function RowEditor({ row, rowPath, locked, update, onSelectNested, movabl
                     <Num label="Width" suffix="%" min={5} max={100} value={c.width} onChange={(v) => setCol(ci, { width: v })} />
                     <label className="flex flex-col gap-1">
                       <span className={lab}>Vertical align</span>
-                      <select className="field h-9 px-2 text-sm" value={c.valign ?? "top"} onChange={(e) => setCol(ci, { valign: e.target.value === "top" ? undefined : (e.target.value as Column["valign"]) })}>
+                      <Select className="field h-9 px-2 text-sm" value={c.valign ?? "top"} onChange={(e) => setCol(ci, { valign: e.target.value === "top" ? undefined : (e.target.value as Column["valign"]) })}>
                         <option value="top">Top</option>
                         <option value="middle">Middle</option>
                         <option value="bottom">Bottom</option>
-                      </select>
+                      </Select>
                     </label>
                   </div>
                   <div className="flex flex-wrap gap-1" role="group" aria-label={`Column ${ci + 1} text alignment`}>

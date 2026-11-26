@@ -4,6 +4,7 @@ import { useState } from "react";
 import { FEATURES, ROLES, type Feature } from "@/lib/authz/roles";
 import { describeLimit, type PlanView } from "@/lib/plans";
 import { ROLE_NAME, Status, useSave } from "../use-save";
+import { Select } from "@/components/ui/select";
 
 export type OrgPlanRow = { id: string; name: string; planId: string | null; client: boolean };
 
@@ -33,12 +34,12 @@ export function PlansAdmin({ plans, orgs }: { plans: PlanView[]; orgs: OrgPlanRo
               </p>
               <div>
                 <label className="mb-1 block text-sm text-muted" htmlFor={`plan-${o.id}`}>Plan for {o.name}</label>
-                <select id={`plan-${o.id}`} className="field w-full" value={value(o)} onChange={(e) => setDraft({ ...draft, [o.id]: e.target.value })}>
+                <Select id={`plan-${o.id}`} className="field w-full" value={value(o)} onChange={(e) => setDraft({ ...draft, [o.id]: e.target.value })}>
                   <option value="">No plan (as before)</option>
                   {plans.map((p) => (
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
-                </select>
+                </Select>
               </div>
               <button
                 type="button"

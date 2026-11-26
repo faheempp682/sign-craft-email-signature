@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { SOURCE_LABEL } from "@/lib/sync/types";
 import { call, formatDate, Status } from "../api";
 import type { Run, StatusData } from "./sync-types";
+import { Select } from "@/components/ui/select";
 
 const STATUS_LABEL: Record<string, string> = { previewed: "Preview", applied: "Applied", blocked: "Refused", failed: "Failed" };
 
@@ -19,12 +20,12 @@ export function HistoryTab({ status }: { status: StatusData }) {
     <div className="space-y-4">
       <div>
         <label htmlFor="hs-source" className="mb-1 block text-sm text-muted">Source</label>
-        <select id="hs-source" className="field" value={source} onChange={(e) => setSource(e.target.value)}>
+        <Select id="hs-source" className="field" value={source} onChange={(e) => setSource(e.target.value)}>
           <option value="">All sources</option>
           {status.sources.map((s) => (
             <option key={s.source} value={s.source}>{s.label}</option>
           ))}
-        </select>
+        </Select>
       </div>
       <Status error={error} notice="" />
       {runs && runs.length === 0 && <p className="card p-6 text-sm text-muted">Nothing has run yet.</p>}

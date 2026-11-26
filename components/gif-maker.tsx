@@ -6,6 +6,7 @@ import { trapTab, useModalFocus } from "@/components/image-cropper";
 import { GifDisabledError, requestGif, type GifResult } from "@/lib/gif/client";
 import { GIF_LIMITS, sizeLevel, type SizeLevel } from "@/lib/gif/limits";
 import { LIMITS, formatBytes } from "@/lib/storage/rules";
+import { Select } from "@/components/ui/select";
 
 export type GifMakerProps = {
   /** Banner size the GIF should match (the schema range is 100-600 x 20-300). */
@@ -197,9 +198,9 @@ export function GifMaker({ width = 400, height = 100, onUse, onClose }: GifMaker
         <section aria-label="Settings" className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <div className="flex flex-col gap-1.5">
             <label htmlFor={`${uid}-loop`} className="text-sm font-medium">Repeat</label>
-            <select id={`${uid}-loop`} className="field w-full" value={loop} onChange={(e) => setLoop(Number(e.target.value))}>
+            <Select id={`${uid}-loop`} className="field w-full" value={loop} onChange={(e) => setLoop(Number(e.target.value))}>
               {LOOPS.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
-            </select>
+            </Select>
           </div>
           <div className="flex flex-col gap-1.5">
             <label htmlFor={`${uid}-w`} className="text-sm font-medium">Width (px)</label>

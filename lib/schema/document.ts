@@ -56,11 +56,15 @@ const AvatarBase = z.object({
   fit: z.enum(["cover", "contain"]).optional(),
 });
 
+/** Marks that can sit before the company name in skins that draw one (Talent card). Unset = the template's own. */
+export const COMPANY_ICONS = ["infinity", "diamond", "star", "dot", "none"] as const;
+
 const IdentityBase = z.object({
   type: z.literal("identity"),
   name: z.string().min(1).max(100),
   title: z.string().max(100).optional(),
   company: z.string().max(100).optional(),
+  companyIcon: z.enum(COMPANY_ICONS).optional(),
 });
 
 const SocialLinks = z
@@ -175,10 +179,14 @@ export const TextBlock = z.object({
   ...Common,
 });
 
+/** Small mark shown before a button's text in skins that draw one (e.g. Talent card). Unset = the template's own. */
+export const BUTTON_ICONS = ["star", "google", "check", "none"] as const;
+
 export const ButtonBlock = z.object({
   type: z.literal("button"),
   label: z.string().min(1).max(40),
   href: httpsUrl,
+  icon: z.enum(BUTTON_ICONS).optional(),
   ...Common,
 });
 

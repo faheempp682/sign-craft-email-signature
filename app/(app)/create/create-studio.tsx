@@ -2,16 +2,17 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { SignaturePreview } from "@/components/signature-preview";
 import { SignaturePreviewDialog } from "@/components/signature-preview-dialog";
 import { ImageCropper } from "@/components/image-cropper";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { applyBrand, paletteFromImage, type Brand } from "@/lib/create/brand";
-import { applyDetails, applyDetailsPreview, applyExtras, applyImages, EMPTY_DETAILS, extractDetails, extractExtras, extraFields, imageSlots, patchDetails, sampleDetails, validateDetails, validateExtras, type Details, type Extra, type ImageSlot, type SlotImage } from "@/lib/create/fill";
+import { applyDetails, applyDetailsPreview, applyExtras, applyImages, EMPTY_DETAILS, ensureIdentity, extractDetails, extractExtras, extraFields, imageSlots, patchDetails, sampleDetails, validateDetails, validateExtras, type Details, type Extra, type ImageSlot, type SlotImage } from "@/lib/create/fill";
 import { canCrop } from "@/lib/editor/crop";
 import { uploadImage } from "@/lib/editor/upload";
 import { clearDetails, loadBrand, loadCustom, loadDraftDetails, loadImages, markHandoff, saveBrand, saveCustom, saveDetails, saveImages } from "@/lib/create/session";
-import { getStorage, saveDraft } from "@/lib/editor/draft";
+import { clearDraft, getStorage, saveDraft } from "@/lib/editor/draft";
 import { exportHtml } from "@/lib/editor/export-html";
 import { copyHtmlRich, downloadHtm } from "@/lib/export-client";
 import { PRESETS, getPreset } from "@/lib/presets";
@@ -20,6 +21,7 @@ import type { Block, SignatureDoc } from "@/lib/schema/document";
 import { Gallery } from "../signatures/gallery";
 import { ImageLibrary } from "../editor/image-library";
 import { ABOUT, BUTTON, COMMON_SOCIAL, NOTE, REACH, SOCIAL, type Spec } from "./details/details-form";
+import { Select } from "@/components/ui/select";
 
 /** Which kinds of block a template contains, looking inside rows. The form only asks for what the template can show. */
 function blockTypes(blocks: Block[], out = new Set<Block["type"]>()): Set<Block["type"]> {
@@ -59,6 +61,8 @@ export function CreateStudio({ header, canUpload = false, initialId, editId, edi
   const [error, setError] = useState("");
   const [savedId, setSavedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  /** Something was changed in the form; with `savedId` empty this means there are unsaved changes. */
+  const [touched, setTouched] = useState(false);
   const [note, setNote] = useState("");
   const [previewing, setPreviewing] = useState(false);
   /** Uploaded photos or logos by slot index. Slots not in here show the template's sample. */
@@ -124,8 +128,10 @@ export function CreateStudio({ header, canUpload = false, initialId, editId, edi
     setImages(loadImages());
     setBrand(loadBrand());
     // Back from the advanced editor: show what they changed there, not the template as it was.
-    const edited = startDoc ?? (initialId ? loadCustom(initialId) : null);
-    if (startDoc) saveCustom(startDoc);
+    const loaded = startDoc ?? (initialId ? loadCustom(initialId) : null);
+    // A name written as a plain text block has no form field to bind to, so typing in "Full name" changed nothing.
+    const edited = loaded ? ensureIdentity(loaded) : null;
+    if (edited && startDoc) saveCustom(edited);
     if (edited) {
       setCustom(edited);
       setExtras(extractExtras(edited));
@@ -177,6 +183,64 @@ export function CreateStudio({ header, canUpload = false, initialId, editId, edi
     if (window.location.pathname + window.location.search !== url) window.history.replaceState(window.history.state, "", url);
   }, [id]);
 
+  /** The action waiting on the "leave this page?" dialog; null when it is closed. */
+  const [leaveAsk, setLeaveAsk] = useState<(() => void) | null>(null);
+  const dirty = !!preset && touched && !savedId;
+  // Refresh, close tab, or typing a new address.
+  useEffect(() => {
+    if (!dirty) return;
+    const onUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onUnload);
+    return () => window.removeEventListener("beforeunload", onUnload);
+  }, [dirty]);
+  // Links in the app (sidebar, header...): ask first, and stay if they say no.
+  useEffect(() => {
+    if (!dirty) return;
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const a = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!a || a.target === "_blank" || a.hasAttribute("download")) return;
+      const to = new URL(a.href, window.location.href);
+      if (to.origin === window.location.origin && to.pathname + to.search === window.location.pathname + window.location.search) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const href = to.pathname + to.search + to.hash;
+      setLeaveAsk(() => () => router.push(href));
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dirty]);
+  // Browser Back button: a spare history entry takes the first Back, so we can ask before really leaving.
+  useEffect(() => {
+    if (!dirty) return;
+    window.history.pushState(window.history.state, "", window.location.href);
+    const onPop = () => {
+      // Stay put (put the spare entry back) and ask; Yes then really goes back.
+      window.history.pushState(window.history.state, "", window.location.href);
+      setLeaveAsk(() => () => {
+        window.removeEventListener("popstate", onPop);
+        window.history.go(-2);
+      });
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dirty]);
+
+  // Opening a template (or going back to the list) always starts at the top. The page scrolls inside the app layout, not the window.
+  const topRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!id) return; // back on the list: leave it where they were scrolled to
+    window.scrollTo({ top: 0 });
+    for (let el = topRef.current?.parentElement; el; el = el.parentElement) {
+      if (el.scrollHeight > el.clientHeight && /(auto|scroll)/.test(getComputedStyle(el).overflowY)) el.scrollTop = 0;
+    }
+  }, [id]);
+
   const pick = (next: string) => {
     setCustom(null);
     saveCustom(null);
@@ -209,13 +273,25 @@ export function CreateStudio({ header, canUpload = false, initialId, editId, edi
   const html = useMemo(() => (!preset ? "" : renderToEmailHtml(custom ? applyExtras(patchDetails(applyImages(custom, customImages), d), extras) : applyDetailsPreview(applyImages(applyBrand(preset.doc, activeBrand), images), d))), [preset, custom, customImages, d, images, activeBrand, extras]);
   const samples = useMemo(() => (baseDoc ? sampleDetails(baseDoc) : {}), [baseDoc]);
   /** The networks every template offers, plus any other network this template's own social block uses. */
+  const [addedNets, setAddedNets] = useState<string[]>([]);
   const socialSpecs = useMemo(() => {
     const own = new Set<string>();
     const walk = (blocks: Block[]) => blocks.forEach((b) => (b.type === "row" ? b.columns.forEach((c) => walk(c.blocks)) : b.type === "social" && b.links.forEach((l) => own.add(l.network))));
     if (baseDoc) walk(baseDoc.blocks);
-    return SOCIAL.filter((x) => COMMON_SOCIAL.includes(x.key) || own.has(x.key));
-  }, [baseDoc]);
+    return SOCIAL.filter((x) => COMMON_SOCIAL.includes(x.key) || own.has(x.key) || addedNets.includes(x.key) || !!d[x.key].trim());
+  }, [baseDoc, addedNets, d]);
   const slots = useMemo(() => (baseDoc ? imageSlots(baseDoc) : []), [baseDoc]);
+
+  // Unsaved changes are kept as the device draft, so the Signatures page shows "Draft in progress" after leaving this screen.
+  useEffect(() => {
+    if (!dirty || !preset) return;
+    const timer = window.setTimeout(() => {
+      const storage = getStorage();
+      if (!storage) return;
+      saveDraft(storage, custom ? applyExtras(patchDetails(applyImages(custom, customImages), d), extras) : applyDetailsPreview(applyImages(applyBrand(preset.doc, activeBrand), images), d));
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [dirty, preset, custom, customImages, d, images, activeBrand, extras]);
 
   async function sendImage(slot: ImageSlot, file: File) {
     setUploading(slot.index);
@@ -241,6 +317,7 @@ export function CreateStudio({ header, canUpload = false, initialId, editId, edi
 
   function update(key: keyof Details, value: string) {
     const next = { ...d, [key]: value };
+    setTouched(true);
     setD(next);
     saveDetails(next);
     setSavedId(null); // changed since the last save: the next Save makes a new signature
@@ -250,6 +327,7 @@ export function CreateStudio({ header, canUpload = false, initialId, editId, edi
 
   function updateExtra(key: string, value: string) {
     const next = { ...extras, [key]: value };
+    setTouched(true);
     setExtras(next);
     if (custom) saveCustom(applyExtras(custom, next)); // kept for this tab, so a refresh does not lose it
     setSavedId(null);
@@ -266,7 +344,7 @@ export function CreateStudio({ header, canUpload = false, initialId, editId, edi
     setExtraErrors(foundExtras);
     if (Object.keys(found).length || Object.keys(foundExtras).length) {
       const first = Object.keys(found)[0];
-      document.getElementById(first ? `s-${first}` : `s-x-${Object.keys(foundExtras)[0]}`)?.focus();
+      focusField(first ? `s-${first}` : `s-x-${Object.keys(foundExtras)[0]}`);
       return null;
     }
     return filledDoc();
@@ -280,6 +358,8 @@ export function CreateStudio({ header, canUpload = false, initialId, editId, edi
       const data = (await res.json().catch(() => null)) as { id?: string; message?: string } | null;
       if (res.ok && data?.id) {
         setSavedId(data.id);
+        const storage = getStorage();
+        if (storage) clearDraft(storage); // it is in their account now, so no draft is left behind
         return "";
       }
       return res.status === 401 ? "Your session expired. Sign in again, then save." : (data?.message ?? "Could not save. Please try again.");
@@ -356,8 +436,7 @@ export function CreateStudio({ header, canUpload = false, initialId, editId, edi
   );
 
   const imageGroup = () => (
-    <fieldset className="space-y-3">
-      <legend className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">{slots.length > 1 ? "Images" : slots[0]?.kind === "banner" ? "Banner" : "Photo or logo"}</legend>
+    <Section title={slots.length > 1 ? "Images" : slots[0]?.kind === "banner" ? "Banner" : "Photo or logo"}>
       {slots.map((s) => {
         const img = images[s.key];
         const url = img?.url;
@@ -478,7 +557,7 @@ export function CreateStudio({ header, canUpload = false, initialId, editId, edi
       )}
       {brandNote && !activeBrand && <p className="text-xs text-muted">{brandNote}</p>}
       {imageError && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{imageError}</p>}
-    </fieldset>
+    </Section>
   );
 
   const extraField = (x: Extra) => (
@@ -504,30 +583,53 @@ export function CreateStudio({ header, canUpload = false, initialId, editId, edi
   /** A group of fields made from the design's own lines. Nothing is shown for an empty list. */
   const extraGroup = (title: string, list: Extra[]) =>
     list.length > 0 && (
-      <fieldset className="space-y-3">
-        <legend className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">{title}</legend>
+      <Section title={title} defaultOpen={false}>
         {list.map(extraField)}
-      </fieldset>
+      </Section>
     );
 
-  const group = (title: string, specs: Spec[]) => (
-    <fieldset className="space-y-3">
-      <legend className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">{title}</legend>
+  const group = (title: string, specs: Spec[], more?: React.ReactNode) => (
+    <Section title={title} defaultOpen={false}>
       {specs.map(field)}
-    </fieldset>
+      {more}
+    </Section>
   );
 
   return (
     <>
       {/* Kept mounted (just hidden) so filters, search and scroll position are still there when they come back. */}
-      <div hidden={!!preset}>
+      <div hidden={!!preset} ref={topRef}>
         {header}
         <Gallery pickLabel="Choose" onPick={pick} mineId={lastId} mineImages={images} mineBrand={hasLogo ? brand : null} />
       </div>
 
+      <Dialog open={!!leaveAsk} onOpenChange={(o) => !o && setLeaveAsk(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Leave this page?</DialogTitle>
+            <DialogDescription>Are you sure you want to go to another page? Your changes are not saved.</DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <button type="button" className="btn min-h-11" onClick={() => setLeaveAsk(null)}>No, stay</button>
+            <button
+              type="button"
+              className="btn btn-primary min-h-11"
+              onClick={() => {
+                const go = leaveAsk;
+                setLeaveAsk(null);
+                setTouched(false); // nothing left to protect once they chose to go
+                go?.();
+              }}
+            >
+              Yes, leave
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {preset && (
         <div>
-          <button type="button" className="btn btn-primary mb-4 inline-flex min-h-11 items-center gap-2" onClick={() => { setId(null); window.scrollTo({ top: 0 }); }}>
+          <button type="button" className="btn btn-primary mb-4 inline-flex min-h-11 items-center gap-2" onClick={() => { const back = () => { setTouched(false); setId(null); window.scrollTo({ top: 0 }); }; if (dirty) setLeaveAsk(() => back); else back(); }}>
             <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
               <path d="M19 12H5" />
               <path d="m12 19-7-7 7-7" />
@@ -544,11 +646,11 @@ export function CreateStudio({ header, canUpload = false, initialId, editId, edi
                 </div>
                 <label className="flex items-center gap-2 text-sm text-muted">
                   <span className="sr-only sm:not-sr-only">Template</span>
-                  <select className="field max-w-48" value={preset.id} onChange={(e) => { setCustom(null); saveCustom(null); setId(e.target.value); setImageError(""); setSavedId(null); setNote(""); }} aria-label="Switch template">
+                  <Select className="field max-w-48" value={preset.id} onChange={(e) => { setCustom(null); saveCustom(null); setId(e.target.value); setImageError(""); setSavedId(null); setNote(""); }} aria-label="Switch template">
                     {PRESETS.map((p) => (
                       <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
               </div>
               <div className="flex flex-wrap items-center gap-2 border-t border-line bg-surface-2/50 p-4">
@@ -576,15 +678,69 @@ export function CreateStudio({ header, canUpload = false, initialId, editId, edi
               <h2 className="text-xl font-semibold tracking-tight">Your details</h2>
               <p className="mt-1 text-sm text-muted">The signature updates as you type. Only your name is required.</p>
               {/* Keyed by template so switching theme re-animates the fields that apply to it. */}
-              <div key={preset.id} className="studio-fields mt-5 space-y-6">
+              <div key={preset.id} className="studio-fields mt-5 space-y-4">
                 {slots.length > 0 && imageGroup()}
-                {group("About you", types.has("identity") ? ABOUT : ABOUT.slice(0, 1))}
+                {group("About you", types.has("identity") ? ABOUT : ABOUT.slice(0, 1), types.has("identity") ? (
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium" htmlFor="s-companyIcon">Company icon</label>
+                    <Select id="s-companyIcon" className="field w-full" value={d.companyIcon} onChange={(e) => update("companyIcon", e.target.value)}>
+                      <option value="">Template default</option>
+                      <option value="infinity">Infinity ∞</option>
+                      <option value="diamond">Diamond ◆</option>
+                      <option value="star">Star ★</option>
+                      <option value="dot">Dot ●</option>
+                      <option value="none">No icon</option>
+                    </Select>
+                  </div>
+                ) : undefined)}
                 {types.has("contact") && group("How to reach you", REACH)}
                 {extraGroup("How to reach you", extraList.filter((x) => ["email", "phone", "website", "address"].includes(x.kind)))}
                 {extraGroup("More in your design", extraList.filter((x) => !["email", "phone", "website", "address"].includes(x.kind)))}
-                {types.has("social") && group("Social links", socialSpecs)}
+                {types.has("social") && group("Social links", socialSpecs, (
+                  <div className="space-y-2">
+                    {SOCIAL.some((x) => d[x.key].trim()) ? (
+                      <div className="flex flex-wrap gap-2" role="group" aria-label="Networks in your signature">
+                        {SOCIAL.filter((x) => d[x.key].trim()).map((x) => (
+                          <button key={x.key} type="button" className="inline-flex items-center gap-1 rounded-full border border-line bg-surface px-3 py-1 text-xs font-medium hover:bg-surface-2" onClick={() => update(x.key, "")} aria-label={`Remove ${x.label}`}>
+                            {x.label} <span aria-hidden="true">✕</span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted">The icons in the preview are samples. Fill in the networks you use: any you leave empty are left out of your signature.</p>
+                    )}
+                    {SOCIAL.some((x) => !socialSpecs.includes(x)) && (
+                      <select className="field w-full" aria-label="Add another network" value="" onChange={(e) => e.target.value && setAddedNets((cur) => [...cur, e.target.value])}>
+                        <option value="">+ Add another network</option>
+                        {SOCIAL.filter((x) => !socialSpecs.includes(x)).map((x) => (
+                          <option key={x.key} value={x.key}>{x.label}</option>
+                        ))}
+                      </select>
+                    )}
+                    <p className="text-xs text-muted">Remove a network by clicking its ✕ above or clearing its field.</p>
+                  </div>
+                ))}
                 {types.has("disclaimer") && group("Footer line", NOTE)}
-                {types.has("button") && group("Button", BUTTON)}
+                {types.has("button") && group("Button", BUTTON, (
+                  <div className="space-y-2">
+                      <label className="block text-sm font-medium" htmlFor="s-buttonIcon">Button icon</label>
+                      <Select id="s-buttonIcon" className="field w-full" value={d.buttonIcon} onChange={(e) => update("buttonIcon", e.target.value)}>
+                        <option value="">Template default</option>
+                        <option value="star">Star (Trustpilot)</option>
+                        <option value="google">Google “G”</option>
+                        <option value="check">Tick</option>
+                        <option value="none">No icon</option>
+                      </Select>
+                      <div className="flex flex-wrap gap-2" role="group" aria-label="Button presets">
+                        {([["Trustpilot reviews", "Reviews on Trustpilot", "star", "trustpilot.com/review/yourcompany.com"], ["Google reviews", "Reviews on Google", "google", "g.page/r/your-business/review"], ["Book a call", "Book a call", "check", ""]] as const).map(([name, label, icon, link]) => (
+                          <button key={name} type="button" className="rounded-full border border-line px-3 py-1 text-xs font-medium text-muted hover:bg-surface-2 hover:text-ink" onClick={() => { const next = { ...d, buttonLabel: label, buttonIcon: icon, buttonUrl: d.buttonUrl || link }; setTouched(true); setD(next); saveDetails(next); setSavedId(null); setNote(""); }}>
+                            {name}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted">The link must be a real web address, like trustpilot.com/review/yourcompany.com. Pick a preset, then paste your own link.</p>
+                    </div>
+                ))}
               </div>
 
               {error && <p role="alert" className="mt-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
@@ -628,7 +784,7 @@ export function CreateStudio({ header, canUpload = false, initialId, editId, edi
                     setErrors(found);
                     if (Object.keys(found).length) {
                       e.preventDefault();
-                      document.getElementById(`s-${Object.keys(found)[0]}`)?.focus();
+                      focusField(`s-${Object.keys(found)[0]}`);
                     }
                   }}>
                     Compare more templates
@@ -668,4 +824,28 @@ export function CreateStudio({ header, canUpload = false, initialId, editId, edi
       )}
     </>
   );
+}
+
+
+/** A collapsible card: only the photo card starts open (pass defaultOpen={false} for the rest); focusField reopens a card when a field inside it has an error. */
+function Section({ title, children, defaultOpen = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
+  return (
+    <details open={defaultOpen} className="studio-card group min-w-0 rounded-2xl border border-line bg-surface-2/40 p-4 shadow-sm">
+      <summary className="flex min-h-8 cursor-pointer list-none items-center justify-between gap-2 rounded text-sm font-semibold uppercase tracking-wide text-muted [&::-webkit-details-marker]:hidden">
+        {title}
+        <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4 shrink-0 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </summary>
+      <div className="mt-3 space-y-3">{children}</div>
+    </details>
+  );
+}
+
+/** Focuses a field, first opening the collapsed card it sits in so the error is visible. */
+function focusField(id: string) {
+  const el = document.getElementById(id);
+  const card = el?.closest("details");
+  if (card && !card.open) card.open = true;
+  el?.focus();
 }

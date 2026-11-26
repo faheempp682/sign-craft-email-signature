@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { customKeyFromHeader, PERSON_FIELDS } from "@/lib/team/people";
 import { call, formatDate, Status, useAction } from "./api";
+import { Select } from "@/components/ui/select";
 
 type Mapping = Record<number, string>;
 type Preview = { fatal: string | null; headers: string[]; delimiter: string; sample: string[][]; mapping: Mapping; totalRows: number };
@@ -136,7 +137,7 @@ export function ImportTab({ onDone }: { onDone: () => void }) {
                   </div>
                   <div>
                     <label htmlFor={id} className="sr-only">Use column {h || i + 1} as</label>
-                    <select
+                    <Select
                       id={id}
                       className="field w-full"
                       value={value.startsWith("custom:") ? "custom" : value}
@@ -149,7 +150,7 @@ export function ImportTab({ onDone }: { onDone: () => void }) {
                       <option value="">Do not import</option>
                       {Object.entries(PERSON_FIELDS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
                       <option value="custom" disabled={customCount >= 10 && !value.startsWith("custom:")}>Custom field</option>
-                    </select>
+                    </Select>
                     {value.startsWith("custom:") && (
                       <>
                         <label htmlFor={`${id}-key`} className="sr-only">Name of the custom field</label>

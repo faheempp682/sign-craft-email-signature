@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ROLES, type Role } from "@/lib/authz/roles";
 import { ROLE_NAME, Status, useSave } from "../use-save";
+import { Select } from "@/components/ui/select";
 
 export type Person = { email: string; joined: string; role: Role; always: boolean };
 export type PendingInvite = { email: string; role: Role; invited: string };
@@ -40,7 +41,7 @@ export function UsersAdmin({ orgName, people, pending = [] }: { orgName: string;
             </div>
             <div>
               <label className="sr-only" htmlFor={`role-${p.email}`}>Role for {p.email}</label>
-              <select
+              <Select
                 id={`role-${p.email}`}
                 className="field w-full"
                 value={p.role}
@@ -50,7 +51,7 @@ export function UsersAdmin({ orgName, people, pending = [] }: { orgName: string;
                 {ROLES.map((r) => (
                   <option key={r} value={r}>{ROLE_NAME[r]}</option>
                 ))}
-              </select>
+              </Select>
             </div>
           </div>
         ))}
@@ -124,11 +125,11 @@ function InviteDialog({ open, onClose, orgName }: { open: boolean; onClose: () =
         </div>
         <div className="flex flex-col gap-1.5">
           <label htmlFor="invite-role" className="text-sm font-medium">Role</label>
-          <select id="invite-role" className="field" value={role} onChange={(e) => setRole(e.target.value as Role)}>
+          <Select id="invite-role" className="field" value={role} onChange={(e) => setRole(e.target.value as Role)}>
             {ROLES.map((r) => (
               <option key={r} value={r}>{ROLE_NAME[r]}</option>
             ))}
-          </select>
+          </Select>
         </div>
         <div aria-live="polite" className="min-h-5 text-sm text-red-600 dark:text-red-400">{error}</div>
         <div className="flex justify-end gap-2">

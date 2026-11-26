@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useState } from "react";
 import type { ActableOrg } from "@/lib/org/active";
+import { Select } from "@/components/ui/select";
 
 type Props = { initial?: { orgs: ActableOrg[]; active: string | null } };
 
@@ -58,11 +59,11 @@ export function OrgSwitcher({ initial }: Props) {
   return (
     <div className="flex items-center gap-2">
       <label htmlFor={id} className="sr-only">Organization</label>
-      <select id={id} className="field min-h-11 max-w-[14rem] truncate" value={active ?? ""} disabled={busy} onChange={(e) => void pick(e.target.value)}>
+      <Select id={id} className="field min-h-11 max-w-[14rem] truncate" value={active ?? ""} disabled={busy} onChange={(e) => void pick(e.target.value)}>
         {orgs.map((o) => (
           <option key={o.id} value={o.id}>{o.viaAgency ? `Client: ${o.name}` : o.name}</option>
         ))}
-      </select>
+      </Select>
       <span role="status" className="text-sm text-red-600 dark:text-red-400">{error}</span>
     </div>
   );

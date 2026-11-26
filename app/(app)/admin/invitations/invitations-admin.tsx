@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ROLES, type Role } from "@/lib/authz/roles";
 import { ROLE_NAME, Status, useSave } from "../use-save";
+import { Select } from "@/components/ui/select";
 
 export type Invitation = { email: string; role: Role; invited: string; accepted: string | null };
 
@@ -39,11 +40,11 @@ export function InvitationsAdmin({ invitations }: { invitations: Invitation[] })
         </div>
         <div className="flex flex-col gap-1.5">
           <label htmlFor="invite-role" className="text-sm font-medium">Role</label>
-          <select id="invite-role" className="field" value={role} onChange={(e) => setRole(e.target.value as Role)}>
+          <Select id="invite-role" className="field" value={role} onChange={(e) => setRole(e.target.value as Role)}>
             {ROLES.map((r) => (
               <option key={r} value={r}>{ROLE_NAME[r]}</option>
             ))}
-          </select>
+          </Select>
         </div>
         <button type="submit" className="btn btn-primary" disabled={busy === "invite"}>{busy === "invite" ? "Please wait…" : "Invite"}</button>
       </form>

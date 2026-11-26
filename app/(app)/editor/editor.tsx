@@ -36,6 +36,7 @@ import { canRedo, canUndo, commit, createHistory, redo, reset, undo, type Histor
 import { DesignWorkspace } from "./design-workspace";
 import { LeaveDialog, useLeaveGuard } from "./leave-guard";
 import { useRouter } from "next/navigation";
+import { Select } from "@/components/ui/select";
 
 const MAX_BLOCKS = 30;
 const AUTOSAVE_MS = 400;
@@ -132,9 +133,9 @@ function Field({ spec, value, error, id, onChange, onUpload, onLibrary, crop, gi
     <div className="flex flex-col gap-1.5">
       <label htmlFor={id} className="text-sm font-medium">{spec.label}</label>
       {spec.kind === "select" ? (
-        <select {...common} onChange={(e) => onChange(e.target.value)}>
+        <Select {...common} onChange={(e) => onChange(e.target.value)}>
           {spec.options!.map((o) => <option key={o}>{o}</option>)}
-        </select>
+        </Select>
       ) : spec.kind === "textarea" ? (
         <textarea {...common} rows={4} onChange={(e) => onChange(e.target.value)} className="field w-full py-2" />
       ) : (
@@ -685,9 +686,9 @@ export function Editor({ initial, explicit, aiNotice = false, fromCreate = false
         <section className="card space-y-4 p-5" aria-label="Template and theme">
           <div className="flex flex-col gap-1.5">
             <label htmlFor="tpl" className="text-sm font-medium">Template layout</label>
-            <select id="tpl" className="field" value={doc.template_id} onChange={(e) => update((s) => ({ ...s, doc: { ...s.doc, template_id: e.target.value as TemplateId } }))}>
+            <Select id="tpl" className="field" value={doc.template_id} onChange={(e) => update((s) => ({ ...s, doc: { ...s.doc, template_id: e.target.value as TemplateId } }))}>
               {TEMPLATE_IDS.map((t) => <option key={t} value={t}>{TEMPLATE_META.find((m) => m.id === t)!.name}</option>)}
-            </select>
+            </Select>
           </div>
           <div className="grid grid-cols-2 gap-4">
             {([["primary", "Accent color"], ["text", "Text color"]] as const).map(([k, label]) => (
@@ -700,15 +701,15 @@ export function Editor({ initial, explicit, aiNotice = false, fromCreate = false
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
               <label htmlFor="font" className="text-sm font-medium">Font</label>
-              <select id="font" className="field" value={theme.font} onChange={(e) => setTheme({ font: e.target.value as typeof theme.font })}>
+              <Select id="font" className="field" value={theme.font} onChange={(e) => setTheme({ font: e.target.value as typeof theme.font })}>
                 {SAFE_FONTS.map((f) => <option key={f}>{f}</option>)}
-              </select>
+              </Select>
             </div>
             <div className="flex flex-col gap-1.5">
               <label htmlFor="spacing" className="text-sm font-medium">Spacing</label>
-              <select id="spacing" className="field" value={theme.spacing} onChange={(e) => setTheme({ spacing: e.target.value as typeof theme.spacing })}>
+              <Select id="spacing" className="field" value={theme.spacing} onChange={(e) => setTheme({ spacing: e.target.value as typeof theme.spacing })}>
                 {["compact", "normal", "airy"].map((s) => <option key={s}>{s}</option>)}
-              </select>
+              </Select>
             </div>
           </div>
         </section>
@@ -875,9 +876,9 @@ export function Editor({ initial, explicit, aiNotice = false, fromCreate = false
           </DndContext>
           <div className="flex gap-2">
             <label htmlFor="add-type" className="sr-only">Block type to add</label>
-            <select id="add-type" className="field flex-1" value={addType} onChange={(e) => setAddType(e.target.value as BlockType)}>
+            <Select id="add-type" className="field flex-1" value={addType} onChange={(e) => setAddType(e.target.value as BlockType)}>
               {BLOCK_TYPES.map((t) => <option key={t} value={t}>{BLOCK_LABEL[t]}</option>)}
-            </select>
+            </Select>
             <button className="btn" onClick={add} disabled={doc.blocks.length >= MAX_BLOCKS}>Add block</button>
           </div>
         </section>
@@ -934,12 +935,12 @@ function SocialEditor({ block, index, errors, onChange, onDisplay }: { block: Ex
     <div className="space-y-4">
       <div className="flex flex-col gap-1.5">
         <label htmlFor={`f-${index}-display`} className="text-sm font-medium">Show as</label>
-        <select id={`f-${index}-display`} className="field" value={block.display ?? ""} onChange={(e) => onDisplay((e.target.value || undefined) as (typeof SOCIAL_DISPLAYS)[number] | undefined)}>
+        <Select id={`f-${index}-display`} className="field" value={block.display ?? ""} onChange={(e) => onDisplay((e.target.value || undefined) as (typeof SOCIAL_DISPLAYS)[number] | undefined)}>
           <option value="">Template default</option>
           <option value="icon">Icons only</option>
           <option value="icon-text">Icons with text</option>
           <option value="text">Text only</option>
-        </select>
+        </Select>
       </div>
       {links.map((l, j) => {
         const err = errors[`blocks.${index}.links.${j}.url`];
@@ -949,9 +950,9 @@ function SocialEditor({ block, index, errors, onChange, onDisplay }: { block: Ex
             <div className="flex items-start gap-2">
               <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                 <label htmlFor={`${id}-n`} className="text-sm font-medium">Network</label>
-                <select id={`${id}-n`} className="field w-full" value={l.network} onChange={(e) => set(j, { network: e.target.value as Link["network"] })}>
+                <Select id={`${id}-n`} className="field w-full" value={l.network} onChange={(e) => set(j, { network: e.target.value as Link["network"] })}>
                   {SOCIAL_NETWORKS.map((n) => <option key={n}>{n}</option>)}
-                </select>
+                </Select>
               </div>
               <button className={`${iconBtn} mt-6 shrink-0`} aria-label={`Remove ${l.network} link`} onClick={() => onChange(links.filter((_, k) => k !== j))}>{TRASH}</button>
             </div>

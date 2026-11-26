@@ -13,6 +13,7 @@ import { GmailPush } from "@/components/gmail-push";
 import { knownDifferences } from "@/lib/render/differences";
 import { ClientBadge } from "./render-ui";
 import { RenderAll } from "./render-all";
+import { Select } from "@/components/ui/select";
 
 export function Exporter({ initial }: { initial: TemplateId }) {
   const [id, setId] = useState<TemplateId>(initial);
@@ -74,11 +75,11 @@ export function Exporter({ initial }: { initial: TemplateId }) {
         <div className="card space-y-4 p-5">
           <div className="flex flex-col gap-1.5">
             <label htmlFor="tpl" className="text-sm font-medium">Template</label>
-            <select id="tpl" value={id} onChange={(e) => setId(e.target.value as TemplateId)} className="field">
+            <Select id="tpl" value={id} onChange={(e) => setId(e.target.value as TemplateId)} className="field">
               {TEMPLATE_IDS.map((t) => (
                 <option key={t} value={t}>{TEMPLATE_META.find((m) => m.id === t)!.name}</option>
               ))}
-            </select>
+            </Select>
           </div>
           <button className="btn w-full" aria-pressed={dark} onClick={() => setDark((d) => !d)}>
             {dark ? "Switch to light mode" : "Switch to dark mode"}

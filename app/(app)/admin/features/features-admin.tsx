@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { FEATURES, type Feature, type Role } from "@/lib/authz/roles";
 import { ROLE_LABEL, Status, Switch, useSave } from "../use-save";
+import { Select } from "@/components/ui/select";
 
 export type FlagRow = { feature: Feature; label: string; description: string; defaultEnabled: boolean; minRole: Role };
 export type OverrideRow = { subjectType: "user" | "org"; subjectId: string; who: string; feature: Feature; enabled: boolean };
@@ -55,11 +56,11 @@ export function FeaturesAdmin({ flags, overrides, orgs, roles }: { flags: FlagRo
                 </div>
                 <div>
                   <label className="sr-only" htmlFor={`min-${f.feature}`}>{f.label}: available to</label>
-                  <select id={`min-${f.feature}`} className="field w-full" disabled={rowBusy} value={f.minRole} onChange={(e) => patch(f, { min_role: e.target.value as Role })}>
+                  <Select id={`min-${f.feature}`} className="field w-full" disabled={rowBusy} value={f.minRole} onChange={(e) => patch(f, { min_role: e.target.value as Role })}>
                     {roles.map((r) => (
                       <option key={r} value={r}>{ROLE_LABEL[r]}</option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
               </div>
             );
@@ -76,10 +77,10 @@ export function FeaturesAdmin({ flags, overrides, orgs, roles }: { flags: FlagRo
         <form onSubmit={addException} className="card mt-4 grid gap-4 p-4 sm:grid-cols-2 sm:p-6 lg:grid-cols-[9rem_1fr_1fr_9rem_auto] lg:items-end">
           <div>
             <label className="mb-1 block text-sm font-medium" htmlFor="ex-kind">Applies to</label>
-            <select id="ex-kind" className="field w-full" value={kind} onChange={(e) => setKind(e.target.value as "user" | "org")}>
+            <Select id="ex-kind" className="field w-full" value={kind} onChange={(e) => setKind(e.target.value as "user" | "org")}>
               <option value="user">A person</option>
               <option value="org" disabled={orgs.length === 0}>An organization</option>
-            </select>
+            </Select>
           </div>
           <div>
             {kind === "user" ? (
@@ -90,28 +91,28 @@ export function FeaturesAdmin({ flags, overrides, orgs, roles }: { flags: FlagRo
             ) : (
               <>
                 <label className="mb-1 block text-sm font-medium" htmlFor="ex-org">Organization</label>
-                <select id="ex-org" className="field w-full" value={orgId} onChange={(e) => setOrgId(e.target.value)}>
+                <Select id="ex-org" className="field w-full" value={orgId} onChange={(e) => setOrgId(e.target.value)}>
                   {orgs.map((o) => (
                     <option key={o.id} value={o.id}>{o.name}</option>
                   ))}
-                </select>
+                </Select>
               </>
             )}
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium" htmlFor="ex-feature">Feature</label>
-            <select id="ex-feature" className="field w-full" value={feature} onChange={(e) => setFeature(e.target.value as Feature)}>
+            <Select id="ex-feature" className="field w-full" value={feature} onChange={(e) => setFeature(e.target.value as Feature)}>
               {flags.map((f) => (
                 <option key={f.feature} value={f.feature}>{f.label}</option>
               ))}
-            </select>
+            </Select>
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium" htmlFor="ex-enabled">Set to</label>
-            <select id="ex-enabled" className="field w-full" value={enabled ? "on" : "off"} onChange={(e) => setEnabled(e.target.value === "on")}>
+            <Select id="ex-enabled" className="field w-full" value={enabled ? "on" : "off"} onChange={(e) => setEnabled(e.target.value === "on")}>
               <option value="on">On</option>
               <option value="off">Off</option>
-            </select>
+            </Select>
           </div>
           <button type="submit" className="btn btn-primary min-h-11" disabled={busy === "add"}>
             {busy === "add" ? "Adding…" : "Add exception"}

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { FIELD_LABEL, SOURCE_LABEL } from "@/lib/sync/types";
 import { call, Field, formatDate, Status, useAction } from "../api";
 import type { Entry, PreviewData, StatusData } from "./sync-types";
+import { Select } from "@/components/ui/select";
 
 const PAGE = 25;
 const KIND_LABEL = { create: "Create", update: "Update", deactivate: "Deactivate" } as const;
@@ -20,11 +21,11 @@ export function ReviewTab({ status, previewId, onPick, onChanged }: { status: St
     <div className="space-y-6">
       {pending.length > 1 && (
         <Field id="pv-pick" label="Preview">
-          <select id="pv-pick" className="field w-full sm:w-auto" value={id} onChange={(e) => onPick(e.target.value)}>
+          <Select id="pv-pick" className="field w-full sm:w-auto" value={id} onChange={(e) => onPick(e.target.value)}>
             {pending.map((s) => (
               <option key={s.pending!.id} value={s.pending!.id}>{SOURCE_LABEL[s.source]}, {formatDate(s.pending!.created_at)}</option>
             ))}
-          </select>
+          </Select>
         </Field>
       )}
       <Review key={id} id={id} onChanged={onChanged} />
@@ -117,20 +118,20 @@ function Review({ id, onChanged }: { id: string; onChanged: () => void }) {
 
       <div className="flex flex-wrap items-end gap-3">
         <Field id="rv-kind" label="Show">
-          <select id="rv-kind" className="field" value={kind} onChange={(e) => { setKind(e.target.value); setOffset(0); }}>
+          <Select id="rv-kind" className="field" value={kind} onChange={(e) => { setKind(e.target.value); setOffset(0); }}>
             <option value="all">All changes</option>
             <option value="create">To create</option>
             <option value="update">To update</option>
             <option value="deactivate">To deactivate</option>
-          </select>
+          </Select>
         </Field>
         <Field id="rv-field" label="Changed field">
-          <select id="rv-field" className="field" value={field} onChange={(e) => { setField(e.target.value); setOffset(0); }}>
+          <Select id="rv-field" className="field" value={field} onChange={(e) => { setField(e.target.value); setOffset(0); }}>
             <option value="">Any field</option>
             {fields.map((f) => (
               <option key={f} value={f}>{label(f)}</option>
             ))}
-          </select>
+          </Select>
         </Field>
         <Field id="rv-q" label="Search name or email">
           <input id="rv-q" className="field w-full sm:w-64" value={q} onChange={(e) => { setQ(e.target.value); setOffset(0); }} />

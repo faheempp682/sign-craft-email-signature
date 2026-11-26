@@ -646,7 +646,7 @@ const talentCard: Skin = {
       return `<img src="${esc(b.src)}" alt="${esc(b.alt)}" width="${b.size}" height="${h}" style="display:block;${b.fit ? "object-fit:" + b.fit + ";" : ""}width:${b.size}px;height:${h}px;border:0;border-radius:18px 0 0 18px;object-fit:cover;" />`;
     }
     if (b.type === "identity") {
-      return `<div style="font-size:20px;line-height:26px;font-weight:bold;color:${t.text};">${esc(b.name)}</div>${b.title ? `<div style="font-size:14px;line-height:20px;font-weight:bold;color:${t.primary};">${esc(b.title)}</div>` : ""}${b.company ? `<div style="padding-top:4px;font-size:13px;line-height:18px;color:${t.muted};"><span style="color:${t.primary};font-size:15px;font-weight:bold;">&infin;</span>&nbsp; ${esc(b.company)}</div>` : ""}`;
+      return `<div style="font-size:20px;line-height:26px;font-weight:bold;color:${t.text};">${esc(b.name)}</div>${b.title ? `<div style="font-size:14px;line-height:20px;font-weight:bold;color:${t.primary};">${esc(b.title)}</div>` : ""}${b.company ? `<div style="padding-top:4px;font-size:13px;line-height:18px;color:${t.muted};">${{ infinity: `<span style="color:${t.primary};font-size:15px;font-weight:bold;">&infin;</span>&nbsp; `, diamond: `<span style="color:${t.primary};font-size:13px;">&#9670;</span>&nbsp; `, star: `<span style="color:${t.primary};font-size:14px;">&#9733;</span>&nbsp; `, dot: `<span style="color:${t.primary};font-size:14px;">&#9679;</span>&nbsp; `, none: "" }[b.companyIcon ?? "infinity"]}${esc(b.company)}</div>` : ""}`;
     }
     if (b.type === "contact") {
       const it = items(b, t.text, t.primary);
@@ -659,7 +659,8 @@ const talentCard: Skin = {
     if (b.type === "social") return socialBadges(b, { size: 26, bg: mix(t.primary, "#FFFFFF", 0.88), fg: t.primary, gap: 6, fs: 9 });
     if (b.type === "button") {
       const href = safeHttpsUrl(b.href);
-      const label = `<span style="color:#00B67A;font-size:15px;">&#9733;</span>&nbsp; <span style="color:${t.muted};">${esc(b.label)}</span>`;
+      const mark = { star: `<span style="color:#00B67A;font-size:15px;">&#9733;</span>&nbsp; `, google: `<span style="color:#4285F4;font-size:15px;font-weight:bold;">G</span>&nbsp; `, check: `<span style="color:${t.primary};font-size:14px;font-weight:bold;">&#10003;</span>&nbsp; `, none: "" }[b.icon ?? "star"];
+      const label = `${mark}<span style="color:${t.muted};">${esc(b.label)}</span>`;
       return `<table ${TABLE_ATTRS}><tr><td style="border:1px solid #D1D5DB;border-radius:16px;padding:5px 14px;font-size:12px;line-height:16px;white-space:nowrap;">${href ? `<a href="${esc(href)}" target="_blank" style="text-decoration:none;color:${t.muted};">${label}</a>` : label}</td></tr></table>`;
     }
     if (b.type === "text") {
@@ -680,7 +681,15 @@ const talentCard: Skin = {
     const rule = `<table ${TABLE_ATTRS} width="100%"><tr><td height="1" style="height:1px;line-height:1px;font-size:1px;border-top:1px solid #E5E7EB;">&nbsp;</td></tr></table>`;
     const socials = so || bu ? `<table ${TABLE_ATTRS}><tr>${td(so?.html, 'valign="middle"')}${so && bu ? sp(10) : ""}${td(bu?.html, 'valign="middle"')}</tr></table>` : "";
     const body = [id?.html, co?.html && vsp(12) + co.html, socials && vsp(12) + socials, tx && vsp(12) + rule + vsp(10) + tx.html].filter(Boolean).join("");
-    const card = `<table ${TABLE_ATTRS} width="550" bgcolor="${t.bg}" style="width:550px;background-color:${t.bg};border:1px solid #E5E7EB;border-radius:18px;font-family:${fonts(t)};color:${t.text};"><tr>${td(av?.html, 'valign="top" style="padding:0;"')}<td valign="middle" style="padding:20px 22px;">${body}</td></tr></table>`;
+    // The photo must be at least as tall as the text column or a blank strip shows under it. Sum the fixed line heights
+    // (20px padding top and bottom, name 26 + title 20 + company 22, then each later section with its 12px gap).
+    const cb = co?.b.type === "contact" ? co.b : undefined;
+    const inlineLine = cb && (cb.phone || cb.email) ? 18 : 0;
+    const contactH = inlineLine + (cb ? [cb.website, cb.address].filter(Boolean).length * (20 + (inlineLine ? 6 : 0)) : 0);
+    /* +12 safety: browsers add a few px of line-box slack the sums miss, and a taller photo only adds even padding around the centred text. */
+    const need = 52 + (id ? 26 + (id.b.type === "identity" && id.b.title ? 20 : 0) + (id.b.type === "identity" && id.b.company ? 22 : 0) : 0) + (co ? 12 + contactH : 0) + (socials ? 12 + (bu ? 28 : 26) : 0) + (tx ? 12 + 1 + 10 + 18 : 0);
+    const photo = av && av.b.type === "avatar" ? av.html.split(`height="${av.b.height ?? Math.max(238, Math.round(av.b.size * 1.72))}"`).join(`height="${Math.max(av.b.height ?? 0, need)}"`).split(`height:${av.b.height ?? Math.max(238, Math.round(av.b.size * 1.72))}px`).join(`height:${Math.max(av.b.height ?? 0, need)}px`) : av?.html;
+    const card = `<table ${TABLE_ATTRS} width="550" bgcolor="${t.bg}" style="width:550px;background-color:${t.bg};border:1px solid #E5E7EB;border-radius:18px;font-family:${fonts(t)};color:${t.text};"><tr>${td(photo, `valign="top" width="${av?.b.type === "avatar" ? av.b.size : ""}" style="padding:0;${av?.b.type === "avatar" ? `width:${av.b.size}px;` : ""}"`)}<td valign="middle" style="padding:20px 22px;">${body}</td></tr></table>`;
     return di ? card + vsp(10) + `<table ${TABLE_ATTRS} width="550" style="width:550px;"><tr><td>${di.html}</td></tr></table>` : card;
   },
 };

@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Button } from "@/components/ui/button";
 import { ROLES, type Role } from "@/lib/authz/roles";
 import { ROLE_NAME } from "@/app/(app)/admin/use-save";
+import { Select } from "@/components/ui/select";
 
 type Result = { ok: true; emailed: boolean; link: string; email: string } | { ok: false; error: string };
 
@@ -66,9 +67,9 @@ export function InviteDialog() {
             <label htmlFor="invite-dialog-email" className="text-sm font-medium">Email address</label>
             <input id="invite-dialog-email" type="email" required autoFocus autoComplete="off" className="field" placeholder="name@company.com" value={email} onChange={(e) => setEmail(e.target.value)} />
             <label htmlFor="invite-dialog-role" className="text-sm font-medium">Role</label>
-            <select id="invite-dialog-role" className="field" value={role} onChange={(e) => setRole(e.target.value as Role)}>
+            <Select id="invite-dialog-role" className="field" value={role} onChange={(e) => setRole(e.target.value as Role)}>
               {ROLES.map((r) => <option key={r} value={r}>{ROLE_NAME[r]}</option>)}
-            </select>
+            </Select>
             {result && !result.ok && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{result.error}</p>}
             <Button type="submit" disabled={busy}>{busy ? "Sending…" : "Send invite"}</Button>
           </form>

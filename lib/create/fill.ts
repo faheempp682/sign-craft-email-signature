@@ -18,22 +18,28 @@ export type Details = {
   facebook: string;
   youtube: string;
   github: string;
+  tiktok: string;
   /** The template's footer / disclaimer line ("Services offered: ..."). Empty drops the sample line. */
   note: string;
   /** The template's call-to-action button. Both needed; empty drops the sample button. */
   buttonLabel: string;
   buttonUrl: string;
+  /** Mark before the button text ("star", "google", "check", "none"); empty keeps the template's. */
+  buttonIcon: string;
+  /** Mark before the company name ("infinity", "diamond", "star", "dot", "none"); empty keeps the template's. */
+  companyIcon: string;
 };
 
-export const EMPTY_DETAILS: Details = { name: "", title: "", company: "", phone: "", email: "", website: "", address: "", linkedin: "", twitter: "", instagram: "", facebook: "", youtube: "", github: "", note: "", buttonLabel: "", buttonUrl: "" };
+export const EMPTY_DETAILS: Details = { name: "", title: "", company: "", phone: "", email: "", website: "", address: "", linkedin: "", twitter: "", instagram: "", facebook: "", youtube: "", github: "", tiktok: "", note: "", buttonLabel: "", buttonUrl: "", buttonIcon: "", companyIcon: "" };
 
-const SOCIAL_FIELDS: { field: "linkedin" | "twitter" | "instagram" | "facebook" | "youtube" | "github"; network: Network; base: string }[] = [
+const SOCIAL_FIELDS: { field: "linkedin" | "twitter" | "instagram" | "facebook" | "youtube" | "github" | "tiktok"; network: Network; base: string }[] = [
   { field: "linkedin", network: "linkedin", base: "https://www.linkedin.com/in/" },
   { field: "twitter", network: "twitter", base: "https://x.com/" },
   { field: "instagram", network: "instagram", base: "https://www.instagram.com/" },
   { field: "facebook", network: "facebook", base: "https://www.facebook.com/" },
   { field: "youtube", network: "youtube", base: "https://www.youtube.com/@" },
   { field: "github", network: "github", base: "https://github.com/" },
+  { field: "tiktok", network: "tiktok", base: "https://www.tiktok.com/@" },
 ];
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -72,6 +78,10 @@ export function validateDetails(d: Details): Partial<Record<keyof Details, strin
 }
 
 const clean = (s: string) => s.trim() || undefined;
+
+const coIcon = (v: string) => (v === "infinity" || v === "diamond" || v === "star" || v === "dot" || v === "none" ? v : undefined);
+const btnIcon = (v: string) => (v === "star" || v === "google" || v === "check" || v === "none" ? v : undefined);
+
 
 type IconLine = Extract<Block, { type: "icontext" }>;
 type TextLine = Extract<Block, { type: "text" }>;
@@ -202,7 +212,7 @@ const fillBlocks = (blocks: Block[], d: Details): Block[] => blocks.filter((b) =
 function fillBlock(b: Block, d: Details): Block {
   switch (b.type) {
     case "identity":
-      return { ...b, name: d.name.trim().slice(0, 100), title: clean(d.title), company: clean(d.company) };
+      return { ...b, name: d.name.trim().slice(0, 100), title: clean(d.title), company: clean(d.company), companyIcon: coIcon(d.companyIcon) ?? b.companyIcon };
     case "avatar":
       return { ...b, alt: d.name.trim().slice(0, 120) }; // the sample photo's alt text names the sample person
     case "contact":
@@ -218,7 +228,7 @@ function fillBlock(b: Block, d: Details): Block {
     case "disclaimer":
       return d.note.trim() ? { ...b, text: d.note.trim().slice(0, 1500) } : b;
     case "button":
-      return d.buttonLabel.trim() && toHttps(d.buttonUrl) ? { ...b, label: d.buttonLabel.trim().slice(0, 40), href: toHttps(d.buttonUrl) } : b;
+      return d.buttonLabel.trim() && toHttps(d.buttonUrl) ? { ...b, label: d.buttonLabel.trim().slice(0, 40), href: toHttps(d.buttonUrl), icon: btnIcon(d.buttonIcon) ?? b.icon } : { ...b, icon: btnIcon(d.buttonIcon) ?? b.icon };
     case "row":
       return { ...b, columns: b.columns.map((c) => ({ ...c, blocks: fillBlocks(c.blocks, d) })) };
     default:
@@ -326,7 +336,12 @@ export function applyDetailsPreview(doc: SignatureDoc, d: Details): SignatureDoc
       if (b.type === "row") return { ...b, columns: b.columns.map((c) => ({ ...c, blocks: go(c.blocks) })) };
       if (b.type === "social" && !anySocial) return b; // nothing typed: the template's sample links stay
       if (b.type === "disclaimer") return typed("note") ? fillBlock(b, m) : b;
-      if (b.type === "button") return typed("buttonLabel") && typed("buttonUrl") ? fillBlock(b, m) : b;
+      if (b.type === "button") {
+        // The text and the mark show as soon as they are typed; the link follows once it is a real address.
+        const label = typed("buttonLabel") ? d.buttonLabel.trim().slice(0, 40) : b.label;
+        const href = typed("buttonUrl") ? toHttps(d.buttonUrl) : b.href;
+        return { ...b, label, href, icon: btnIcon(d.buttonIcon) ?? b.icon };
+      }
       if (SAMPLE_COPY.has(b.type)) return b;
       return fillBlock(b, m);
     });
@@ -358,6 +373,7 @@ export function extractDetails(doc: SignatureDoc): Partial<Details> {
         set("name", b.name);
         set("title", b.title);
         set("company", b.company);
+        set("companyIcon", b.companyIcon);
       } else if (b.type === "contact") {
         set("phone", b.phone);
         set("email", b.email);
@@ -369,6 +385,7 @@ export function extractDetails(doc: SignatureDoc): Partial<Details> {
       else if (b.type === "button") {
         set("buttonLabel", b.label);
         set("buttonUrl", b.href);
+        set("buttonIcon", b.icon);
       }
     }
   };
@@ -401,7 +418,7 @@ export function patchDetails(doc: SignatureDoc, d: Details): SignatureDoc {
         case "row":
           return { ...b, columns: b.columns.map((c) => ({ ...c, blocks: go(c.blocks) })) };
         case "identity":
-          return { ...b, name: d.name.trim().slice(0, 100) || b.name, title: clean(d.title), company: clean(d.company) };
+          return { ...b, name: d.name.trim().slice(0, 100) || b.name, title: clean(d.title), company: clean(d.company), companyIcon: coIcon(d.companyIcon) ?? b.companyIcon };
         case "avatar":
           return d.name.trim() ? { ...b, alt: d.name.trim().slice(0, 120) } : b;
         case "contact":
@@ -413,7 +430,7 @@ export function patchDetails(doc: SignatureDoc, d: Details): SignatureDoc {
         case "disclaimer":
           return d.note.trim() ? { ...b, text: d.note.trim().slice(0, 1500) } : b;
         case "button":
-          return d.buttonLabel.trim() && toHttps(d.buttonUrl) ? { ...b, label: d.buttonLabel.trim().slice(0, 40), href: toHttps(d.buttonUrl) } : b;
+          return d.buttonLabel.trim() && toHttps(d.buttonUrl) ? { ...b, label: d.buttonLabel.trim().slice(0, 40), href: toHttps(d.buttonUrl), icon: btnIcon(d.buttonIcon) ?? b.icon } : { ...b, icon: btnIcon(d.buttonIcon) ?? b.icon };
         default:
           return b;
       }

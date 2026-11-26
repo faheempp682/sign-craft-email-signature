@@ -14,6 +14,7 @@ import { CopyIcon } from "@solar-icons/react/bold-duotone/copy";
 import { DownloadMinimalisticIcon } from "@solar-icons/react/bold-duotone/download-minimalistic";
 import { SignatureFrame } from "../signature-frame";
 import { PreviewShell } from "../ui";
+import { Select } from "@/components/ui/select";
 
 const NETWORK_LABEL: Record<(typeof GENERATOR_NETWORKS)[number], string> = { linkedin: "LinkedIn", twitter: "X (Twitter)", instagram: "Instagram", facebook: "Facebook", youtube: "YouTube", github: "GitHub" };
 const SAMPLE = { name: "Your Name", title: "Your title", company: "Your company", phone: "+1 555 0100", email: "you@company.com", website: "company.com" };
@@ -78,7 +79,7 @@ export function SignatureGenerator() {
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
       <form onSubmit={(e) => e.preventDefault()} noValidate aria-label="Signature details" className="order-2 grid content-start gap-5 lg:order-1">
         <Field id="g-template" label="Template">
-          <select id="g-template" className="field w-full" value={input.templateId} onChange={(e) => set("templateId", e.target.value)}>
+          <Select id="g-template" className="field w-full" value={input.templateId} onChange={(e) => set("templateId", e.target.value)}>
             {CATEGORIES.map((c) => {
               const list = GENERATOR_TEMPLATES.filter((t) => t.category === c);
               return list.length ? (
@@ -91,7 +92,7 @@ export function SignatureGenerator() {
                 </optgroup>
               ) : null;
             })}
-          </select>
+          </Select>
         </Field>
 
         <div className="grid gap-5 sm:grid-cols-2">

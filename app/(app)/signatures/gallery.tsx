@@ -183,7 +183,12 @@ export function Gallery({ pickPath = "/editor", pickLabel = "Use template", onPi
 
       {col !== MINE && <ul className="grid gap-5 md:grid-cols-2">
         {list.slice(0, shown).map((t, i) => (
-          <li key={t.id} className="card overflow-hidden">
+          <li
+            key={t.id}
+            className="card cursor-pointer overflow-hidden transition-shadow hover:shadow-md"
+            // The whole card opens the template, same as its button (which is still there for keyboard users).
+            onClick={() => (onPick ? onPick(t.id) : router.push(`${pickPath}?t=${encodeURIComponent(t.id)}`))}
+          >
             {/* Real exporter output in a sandboxed iframe, so what you see is what ships. */}
             <SignaturePreview title={`${t.name} preview`} html={renderToEmailHtml(previewDoc(t.doc, i, t.id === mineId && mineImages && Object.keys(mineImages).length ? { images: mineImages, brand: mineBrand ?? null } : undefined))} className="border-b border-line" />
             <div className="flex items-start justify-between gap-3 p-5">
@@ -192,9 +197,9 @@ export function Gallery({ pickPath = "/editor", pickLabel = "Use template", onPi
                 <p className="mt-1 text-sm text-muted">{t.category}</p>
               </div>
               {onPick ? (
-                <button type="button" className="btn shrink-0" onClick={() => onPick(t.id)}>{pickLabel}</button>
+                <button type="button" className="btn shrink-0">{pickLabel}</button>
               ) : (
-                <Link href={`${pickPath}?t=${encodeURIComponent(t.id)}`} className="btn shrink-0">
+                <Link href={`${pickPath}?t=${encodeURIComponent(t.id)}`} className="btn shrink-0" onClick={(e) => e.stopPropagation()}>
                   {pickLabel}
                 </Link>
               )}

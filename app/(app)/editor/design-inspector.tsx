@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { SAFE_FONTS, GRADIENT_DIRECTIONS, type Block, type BlockStyle } from "@/lib/schema/document";
 import { BLOCK_LABEL } from "@/lib/editor/blocks";
 import { STYLE_SUPPORT, styleWarnings } from "@/lib/renderer/block-style";
+import { Select } from "@/components/ui/select";
 
 /* ---------- small controls ---------- */
 
@@ -157,12 +158,12 @@ export function DesignInspector({
         <Section title="Text">
           <label className="flex flex-col gap-1">
             <span className={lab}>Font</span>
-            <select className="field h-9 px-2 text-sm" value={s.fontFamily ?? ""} onChange={(e) => setStyle({ fontFamily: e.target.value || undefined })}>
+            <Select className="field h-9 px-2 text-sm" value={s.fontFamily ?? ""} onChange={(e) => setStyle({ fontFamily: e.target.value || undefined })}>
               <option value="">Signature font</option>
               {SAFE_FONTS.map((f) => (
                 <option key={f}>{f}</option>
               ))}
-            </select>
+            </Select>
           </label>
           <div className="grid grid-cols-2 gap-3">
             <Num label="Size" value={s.fontSize} min={8} max={48} onChange={(v) => setStyle({ fontSize: v })} />
@@ -186,12 +187,12 @@ export function DesignInspector({
           </div>
           <label className="flex flex-col gap-1">
             <span className={lab}>Capitalisation</span>
-            <select className="field h-9 px-2 text-sm" value={s.textTransform ?? "none"} onChange={(e) => setStyle({ textTransform: e.target.value === "none" ? undefined : e.target.value })}>
+            <Select className="field h-9 px-2 text-sm" value={s.textTransform ?? "none"} onChange={(e) => setStyle({ textTransform: e.target.value === "none" ? undefined : e.target.value })}>
               <option value="none">As typed</option>
               <option value="uppercase">UPPERCASE</option>
               <option value="lowercase">lowercase</option>
               <option value="capitalize">Capitalize Each Word</option>
-            </select>
+            </Select>
           </label>
           <SupportNote k="textTransform" />
         </Section>
@@ -218,11 +219,11 @@ export function DesignInspector({
               </div>
               <label className="flex flex-col gap-1">
                 <span className={lab}>Direction</span>
-                <select className="field h-9 px-2 text-sm" value={g.direction} onChange={(e) => setStyle({ gradient: { ...g, direction: e.target.value } })}>
+                <Select className="field h-9 px-2 text-sm" value={g.direction} onChange={(e) => setStyle({ gradient: { ...g, direction: e.target.value } })}>
                   {GRADIENT_DIRECTIONS.map((d) => (
                     <option key={d} value={d}>{d.replace("to-", "to ")}</option>
                   ))}
-                </select>
+                </Select>
               </label>
               <label className="flex flex-col gap-1">
                 <span className={lab}>Gradient opacity {Math.round(g.opacity * 100)}%</span>

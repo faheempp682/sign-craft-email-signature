@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { call, Field, Status, useAction } from "./api";
+import { Select } from "@/components/ui/select";
 
 export type PersonRow = {
   id: string;
@@ -80,16 +81,16 @@ export function PeopleTab({ onImport }: { onImport: () => void }) {
             <input id="p-q" type="search" className="field w-full" placeholder="Name, email or title" value={q} onChange={(e) => { setQ(e.target.value); setOffset(0); }} maxLength={80} />
           </Field>
           <Field id="p-dept" label="Department">
-            <select id="p-dept" className="field w-full" value={department} onChange={(e) => { setDepartment(e.target.value); setOffset(0); }}>
+            <Select id="p-dept" className="field w-full" value={department} onChange={(e) => { setDepartment(e.target.value); setOffset(0); }}>
               <option value="">All departments</option>
               {departments.map((d) => <option key={d} value={d}>{d} ({counts?.departments[d]})</option>)}
-            </select>
+            </Select>
           </Field>
           <Field id="p-src" label="Source">
-            <select id="p-src" className="field w-full" value={source} onChange={(e) => { setSource(e.target.value); setOffset(0); }}>
+            <Select id="p-src" className="field w-full" value={source} onChange={(e) => { setSource(e.target.value); setOffset(0); }}>
               <option value="">All sources</option>
               {Object.keys(counts?.sources ?? {}).map((s) => <option key={s} value={s}>{SOURCE_LABEL[s] ?? s} ({counts?.sources[s]})</option>)}
-            </select>
+            </Select>
           </Field>
         </div>
         <div className="flex flex-wrap gap-3">

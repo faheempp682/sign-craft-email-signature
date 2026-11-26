@@ -5,6 +5,7 @@ import { call, Field, formatDate, Status, useAction } from "../api";
 import { Pill } from "../deploy/ui";
 import { RestorePanel } from "./restore-panel";
 import { KIND_LABEL, RESOLVED_LABEL, STATUS_LABEL, type Finding, type FindingsPage } from "./types";
+import { Select } from "@/components/ui/select";
 
 const STATUS_FILTERS = [
   { id: "open", label: "Open" },
@@ -83,18 +84,18 @@ export function FindingsSection({ reloadKey, onChanged }: { reloadKey: number; o
 
       <div className="grid max-w-xl grid-cols-1 gap-3 sm:grid-cols-2">
         <Field id="f-status" label="Status">
-          <select id="f-status" className="field min-h-11 w-full" value={status} onChange={(e) => setStatus(e.target.value)}>
+          <Select id="f-status" className="field min-h-11 w-full" value={status} onChange={(e) => setStatus(e.target.value)}>
             {STATUS_FILTERS.map((s) => (
               <option key={s.id} value={s.id}>{s.label}</option>
             ))}
-          </select>
+          </Select>
         </Field>
         <Field id="f-kind" label="What happened">
-          <select id="f-kind" className="field min-h-11 w-full" value={kind} onChange={(e) => setKind(e.target.value)}>
+          <Select id="f-kind" className="field min-h-11 w-full" value={kind} onChange={(e) => setKind(e.target.value)}>
             {KIND_FILTERS.map((s) => (
               <option key={s.id} value={s.id}>{s.label}</option>
             ))}
-          </select>
+          </Select>
         </Field>
       </div>
 

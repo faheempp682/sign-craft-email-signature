@@ -2,6 +2,7 @@
 
 import { useId, useState } from "react";
 import { CATEGORY_LABEL, REVIEW_NOTE, type Disclaimer } from "@/lib/disclaimers/labels";
+import { Select } from "@/components/ui/select";
 
 /**
  * Lets someone start their signature's legal notice from a template. The text is COPIED into the signature (later
@@ -46,11 +47,11 @@ export function DisclaimerPicker({ hasDisclaimer, onInsert }: { hasDisclaimer: b
           <>
             <div className="flex flex-col gap-1.5">
               <label htmlFor={selectId} className="font-medium">Template</label>
-              <select id={selectId} className="field w-full" value={chosen} onChange={(e) => { setChosen(e.target.value); setDone(""); }}>
+              <Select id={selectId} className="field w-full" value={chosen} onChange={(e) => { setChosen(e.target.value); setDone(""); }}>
                 {list.map((d) => (
                   <option key={d.id} value={d.id}>{d.title} ({CATEGORY_LABEL[d.category]}, {d.jurisdiction})</option>
                 ))}
-              </select>
+              </Select>
             </div>
             {picked && <p className="max-h-40 overflow-auto rounded-lg border border-line bg-surface-2 p-3 text-xs leading-relaxed">{picked.body}</p>}
             <p className="text-xs text-muted">{REVIEW_NOTE}</p>

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { CRM_TARGETS, DIRECTORY_FIELDS, FIELD_LABEL, SOURCE_LABEL, type Policy, type SyncSource } from "@/lib/sync/types";
 import { call, Field, Status, useAction } from "../api";
 import type { SourceCard, SourceSettingsData, StatusData } from "./sync-types";
+import { Select } from "@/components/ui/select";
 
 type Row = { from: string; kind: "field" | "custom"; field: string; key: string; policy: Policy };
 type TestRow = { from: string; to: string; found: boolean; value: string; note: string };
@@ -19,11 +20,11 @@ export function RulesTab({ status, onChanged }: { status: StatusData; onChanged:
   return (
     <div className="space-y-6">
       <Field id="rl-source" label="Source">
-        <select id="rl-source" className="field w-full sm:w-auto" value={source} onChange={(e) => setSource(e.target.value as SyncSource)}>
+        <Select id="rl-source" className="field w-full sm:w-auto" value={source} onChange={(e) => setSource(e.target.value as SyncSource)}>
           {status.sources.map((s) => (
             <option key={s.source} value={s.source}>{s.label}</option>
           ))}
-        </select>
+        </Select>
       </Field>
       <SourceRules key={source} source={source} kind={card.kind} onChanged={onChanged} />
     </div>
@@ -140,12 +141,12 @@ function SourceRules({ source, kind, onChanged }: { source: SyncSource; kind: "d
                     </Field>
                     <div>
                       <Field id={`m-to-${i}`} label="People field">
-                        <select id={`m-to-${i}`} className="field w-full" value={r.kind === "custom" ? "__custom" : r.field} onChange={(e) => setRows(rows.map((x, j) => (j === i ? (e.target.value === "__custom" ? { ...x, kind: "custom" as const } : { ...x, kind: "field" as const, field: e.target.value }) : x)))}>
+                        <Select id={`m-to-${i}`} className="field w-full" value={r.kind === "custom" ? "__custom" : r.field} onChange={(e) => setRows(rows.map((x, j) => (j === i ? (e.target.value === "__custom" ? { ...x, kind: "custom" as const } : { ...x, kind: "field" as const, field: e.target.value }) : x)))}>
                           {CRM_TARGETS.map((f) => (
                             <option key={f} value={f}>{FIELD_LABEL[f]}</option>
                           ))}
                           <option value="__custom">Custom field…</option>
-                        </select>
+                        </Select>
                       </Field>
                       {r.kind === "custom" && (
                         <div className="mt-2">
@@ -227,10 +228,10 @@ function SourceRules({ source, kind, onChanged }: { source: SyncSource; kind: "d
 
 function PolicySelect({ id, value, source, onChange }: { id: string; value: Policy; source: SyncSource; onChange: (v: Policy) => void }) {
   return (
-    <select id={id} className="field w-full sm:w-auto" value={value} onChange={(e) => onChange(e.target.value as Policy)}>
+    <Select id={id} className="field w-full sm:w-auto" value={value} onChange={(e) => onChange(e.target.value as Policy)}>
       <option value="source">{SOURCE_LABEL[source]} wins (overwrite)</option>
       <option value="directory">SignCraft wins (fill empty only)</option>
-    </select>
+    </Select>
   );
 }
 

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Select } from "@/components/ui/select";
 
 export type Client = { id: string; name: string; planId: string | null; members: number; people: number };
 const PLANS = [
@@ -101,11 +102,11 @@ export function AgencyClients({ clients, activeId, agencyId, activeIsClient }: {
           </div>
           <div>
             <label htmlFor="client-plan" className="mb-1 block text-sm text-muted">Plan</label>
-            <select id="client-plan" className="field w-full" value={plan} onChange={(e) => setPlan(e.target.value)}>
+            <Select id="client-plan" className="field w-full" value={plan} onChange={(e) => setPlan(e.target.value)}>
               {PLANS.map(([v, l]) => (
                 <option key={v} value={v}>{l}</option>
               ))}
-            </select>
+            </Select>
           </div>
           <button type="submit" className="btn btn-primary min-h-11" disabled={busy === "create"}>{busy === "create" ? "Creating…" : "Create client"}</button>
         </form>

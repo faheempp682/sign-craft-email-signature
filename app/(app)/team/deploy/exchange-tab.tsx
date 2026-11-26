@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { call, Field, Status, useAction } from "../api";
 import { CodeBox, NotRunBanner, Pill } from "./ui";
+import { Select } from "@/components/ui/select";
 
 type Generated = {
   script: string;
@@ -63,20 +64,20 @@ export function ExchangeTab() {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field id="x-mode" label="Rule mode">
-            <select id="x-mode" className="field w-full" value={mode} onChange={(e) => setMode(e.target.value as typeof mode)}>
+            <Select id="x-mode" className="field w-full" value={mode} onChange={(e) => setMode(e.target.value as typeof mode)}>
               {MODES.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
-            </select>
+            </Select>
           </Field>
           <Field id="x-fb" label="If the signature cannot be added (encrypted or signed mail)" hint="Ignore never blocks or alters mail.">
-            <select id="x-fb" className="field w-full" value={fallback} onChange={(e) => setFallback(e.target.value as typeof fallback)}>
+            <Select id="x-fb" className="field w-full" value={fallback} onChange={(e) => setFallback(e.target.value as typeof fallback)}>
               {FALLBACKS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
-            </select>
+            </Select>
           </Field>
           <Field id="x-prio" label="Rule priority" hint="After all your existing rules is safest. A number means that position (0 is first).">
-            <select id="x-prio" className="field w-full" value={priorityKind} onChange={(e) => setPriorityKind(e.target.value as "end" | "number")}>
+            <Select id="x-prio" className="field w-full" value={priorityKind} onChange={(e) => setPriorityKind(e.target.value as "end" | "number")}>
               <option value="end">After every rule that already exists</option>
               <option value="number">A fixed starting number</option>
-            </select>
+            </Select>
           </Field>
           {priorityKind === "number" && (
             <Field id="x-num" label="Starting priority number">

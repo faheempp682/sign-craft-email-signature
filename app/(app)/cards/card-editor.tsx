@@ -11,6 +11,7 @@ import { cardUrl } from "@/lib/cards/signature-link";
 import { SOCIAL_NETWORKS } from "@/lib/schema/document";
 import { NETWORK_LABEL } from "@/app/c/card-view";
 import { Switch } from "../admin/use-save";
+import { Select } from "@/components/ui/select";
 
 type Slug = { state: "idle" | "checking" | "ok" | "bad"; message: string };
 
@@ -227,11 +228,11 @@ export function CardEditor({ card, origin, cardCount, limit }: { card?: OwnedCar
               <div key={i} className="grid gap-2 sm:grid-cols-[10rem_1fr_auto] sm:items-start">
                 <div>
                   <label className="sr-only" htmlFor={`s-net-${i}`}>Network {i + 1}</label>
-                  <select id={`s-net-${i}`} className="field w-full" value={row.network} onChange={(e) => set("social_links", form.social_links.map((r, j) => (j === i ? { ...r, network: e.target.value as typeof row.network } : r)))}>
+                  <Select id={`s-net-${i}`} className="field w-full" value={row.network} onChange={(e) => set("social_links", form.social_links.map((r, j) => (j === i ? { ...r, network: e.target.value as typeof row.network } : r)))}>
                     {SOCIAL_NETWORKS.map((n) => (
                       <option key={n} value={n}>{NETWORK_LABEL[n]}</option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
                 <div>
                   <label className="sr-only" htmlFor={`s-url-${i}`}>{NETWORK_LABEL[row.network]} address</label>

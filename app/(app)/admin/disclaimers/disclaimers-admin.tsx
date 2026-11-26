@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CATEGORY_LABEL, REVIEW_NOTE, type Disclaimer } from "@/lib/disclaimers/labels";
 import { Status, useSave } from "../use-save";
+import { Select } from "@/components/ui/select";
 
 const CATEGORIES = Object.keys(CATEGORY_LABEL) as Disclaimer["category"][];
 
@@ -45,10 +46,10 @@ export function DisclaimersAdmin({ items }: { items: Disclaimer[] }) {
 
       <div className="max-w-xs">
         <label htmlFor="cat" className="mb-1 block text-sm text-muted">Show</label>
-        <select id="cat" className="field min-h-11 w-full" value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)}>
+        <Select id="cat" className="field min-h-11 w-full" value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)}>
           <option value="all">All categories</option>
           {CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>)}
-        </select>
+        </Select>
       </div>
 
       <NewDisclaimer />
@@ -130,9 +131,9 @@ function NewDisclaimer() {
         </div>
         <div>
           <label htmlFor="nd-cat" className="mb-1 block text-sm text-muted">Category</label>
-          <select id="nd-cat" className="field min-h-11 w-full" value={f.category} onChange={(e) => setF({ ...f, category: e.target.value as Disclaimer["category"] })}>
+          <Select id="nd-cat" className="field min-h-11 w-full" value={f.category} onChange={(e) => setF({ ...f, category: e.target.value as Disclaimer["category"] })}>
             {CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>)}
-          </select>
+          </Select>
         </div>
         <div>
           <label htmlFor="nd-jur" className="mb-1 block text-sm text-muted">Jurisdiction (optional)</label>

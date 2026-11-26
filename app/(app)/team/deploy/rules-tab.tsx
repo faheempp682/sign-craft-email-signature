@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AUDIENCES, MESSAGE_KINDS, describeRule, ruleSupport, type Audience, type MessageKind, type Rule } from "@/lib/rules/evaluate";
 import { call, Field, Status, useAction } from "../api";
 import { Pill } from "./ui";
+import { Select } from "@/components/ui/select";
 
 type Template = { id: string; name: string; departments: string[]; is_active: boolean };
 type Data = { rules: Rule[]; templates: Template[]; departments: string[] };
@@ -137,19 +138,19 @@ function RuleForm({ rule, data, onDone, onCancel }: { rule: Rule | null; data: D
           <input id="rf-name" className="field w-full" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} aria-invalid={!!fieldError.name} aria-describedby={fieldError.name ? "rf-name-err" : undefined} />
         </Field>
         <Field id="rf-tpl" label="Use this template">
-          <select id="rf-tpl" className="field w-full" value={template} onChange={(e) => setTemplate(e.target.value)}>
+          <Select id="rf-tpl" className="field w-full" value={template} onChange={(e) => setTemplate(e.target.value)}>
             {data.templates.map((t) => <option key={t.id} value={t.id}>{t.name}{t.is_active ? "" : " (off)"}</option>)}
-          </select>
+          </Select>
         </Field>
         <Field id="rf-kind" label="For this kind of message">
-          <select id="rf-kind" className="field w-full" value={kind} onChange={(e) => setKind(e.target.value as MessageKind)}>
+          <Select id="rf-kind" className="field w-full" value={kind} onChange={(e) => setKind(e.target.value as MessageKind)}>
             {MESSAGE_KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
-          </select>
+          </Select>
         </Field>
         <Field id="rf-aud" label="Sent to">
-          <select id="rf-aud" className="field w-full" value={audience} onChange={(e) => setAudience(e.target.value as Audience)}>
+          <Select id="rf-aud" className="field w-full" value={audience} onChange={(e) => setAudience(e.target.value as Audience)}>
             {AUDIENCES.map((a) => <option key={a} value={a}>{AUDIENCE_LABEL[a]}</option>)}
-          </select>
+          </Select>
         </Field>
         <Field id="rf-dep" label="From people in these departments (empty means all)" hint={data.departments.length ? `Separate with a semicolon. In your directory: ${data.departments.slice(0, 8).join(", ")}${data.departments.length > 8 ? ", …" : ""}` : "Separate with a semicolon."} error={fieldError.depts}>
           <input id="rf-dep" className="field w-full" value={depts} onChange={(e) => setDepts(e.target.value)} list="rf-dep-list" aria-invalid={!!fieldError.depts} aria-describedby={fieldError.depts ? "rf-dep-err" : undefined} />
@@ -212,22 +213,22 @@ function TestPanel() {
           <input id="t-q" className="field w-full" value={q} onChange={(e) => setQ(e.target.value)} />
         </Field>
         <Field id="t-p" label="Person">
-          <select id="t-p" className="field w-full" value={person} onChange={(e) => setPerson(e.target.value)}>
+          <Select id="t-p" className="field w-full" value={person} onChange={(e) => setPerson(e.target.value)}>
             {people.map((p) => <option key={p.id} value={p.id}>{p.full_name}{p.department ? ` (${p.department})` : ""}</option>)}
-          </select>
+          </Select>
         </Field>
         <Field id="t-k" label="Message">
-          <select id="t-k" className="field w-full" value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
+          <Select id="t-k" className="field w-full" value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
             <option value="new">A new message</option>
             <option value="reply">A reply</option>
             <option value="forward">A forward</option>
-          </select>
+          </Select>
         </Field>
         <Field id="t-a" label="Recipient is">
-          <select id="t-a" className="field w-full" value={audience} onChange={(e) => setAudience(e.target.value as typeof audience)}>
+          <Select id="t-a" className="field w-full" value={audience} onChange={(e) => setAudience(e.target.value as typeof audience)}>
             <option value="external">Someone outside the organization</option>
             <option value="internal">Someone inside the organization</option>
-          </select>
+          </Select>
         </Field>
       </div>
       <button type="button" className="btn btn-primary" disabled={!person || busy !== null} onClick={test}>{busy === "test" ? "Checking…" : "Test"}</button>
