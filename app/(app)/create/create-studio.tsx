@@ -641,6 +641,7 @@ export function CreateStudio({ header, canUpload = false, initialId, editId, edi
             <ImageCropper
               file={crop.file}
               aspect={crop.slot.aspect}
+          adjustHeight={crop.slot.kind === "banner"}
               shape={crop.slot.shape}
               purpose={crop.slot.kind === "banner" ? "banner" : "avatar"}
               title={crop.slot.kind === "banner" ? "Crop banner" : "Crop photo or logo"}

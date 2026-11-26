@@ -162,6 +162,7 @@ function Field({ spec, value, error, id, onChange, onUpload, onLibrary, crop, gi
         <ImageCropper
           file={cropFile}
           aspect={crop.aspect}
+          adjustHeight={crop.purpose === "banner"}
           shape={crop.shape}
           purpose={crop.purpose}
           title={crop.purpose === "banner" ? "Crop banner" : "Crop photo or logo"}

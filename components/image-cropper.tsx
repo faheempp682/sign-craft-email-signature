@@ -3,13 +3,15 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CropLoadError, loadCropSource, renderCrop, type CropSource } from "@/lib/editor/crop-canvas";
-import { cropRect, initialState, maskRadius, maxZoomFor, nudge, outputSize, panBy, zoomBy, zoomTo, type CropState, type Size } from "@/lib/editor/crop";
+import { clampState, cropRect, initialState, maskRadius, maxZoomFor, nudge, outputSize, panBy, zoomBy, zoomTo, type CropState, type Size } from "@/lib/editor/crop";
 import type { UploadPurpose } from "@/lib/storage/rules";
 
 export type ImageCropperProps = {
   file: File;
   /** Width / height of the crop window (1 for a photo, the banner's own ratio for a banner). */
   aspect: number;
+  /** Shows a height slider so the person can make the crop window taller or shorter (banners). The result's shape follows. */
+  adjustHeight?: boolean;
   /** The block's chosen shape; only used to preview the result with a matching mask. */
   shape?: string;
   purpose: UploadPurpose;
@@ -72,17 +74,20 @@ export function trapTab(e: React.KeyboardEvent, dialog: HTMLElement | null) {
   }
 }
 
-export function ImageCropper({ file, aspect, shape, purpose, title = "Crop image", confirmLabel = "Crop and upload", onConfirm, onCancel, onUseOriginal }: ImageCropperProps) {
+export function ImageCropper({ file, aspect: initialAspect, adjustHeight = false, shape, purpose, title = "Crop image", confirmLabel = "Crop and upload", onConfirm, onCancel, onUseOriginal }: ImageCropperProps) {
   const uid = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const previewRef = useRef<HTMLCanvasElement>(null);
   const srcRef = useRef<CropSource | null>(null);
   const stateRef = useRef<CropState>({ zoom: 1, cx: 0, cy: 0 });
   const viewSize = useRef<Size>({ w: 0, h: 0 });
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const pinch = useRef<number | null>(null);
 
+  const [aspect, setAspect] = useState(initialAspect);
+  const aspectRef = useRef(initialAspect);
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [state, setState] = useState<CropState>(stateRef.current);
@@ -108,7 +113,7 @@ export function ImageCropper({ file, aspect, shape, purpose, title = "Crop image
         if (dead) return s.close();
         src = s;
         srcRef.current = s;
-        commit(initialState({ w: s.width, h: s.height }, aspect));
+        commit(initialState({ w: s.width, h: s.height }, aspectRef.current));
         setReady(true);
       })
       .catch((e) => !dead && setLoadError(e instanceof CropLoadError ? e.message : "That file could not be opened as an image."));
@@ -117,7 +122,7 @@ export function ImageCropper({ file, aspect, shape, purpose, title = "Crop image
       srcRef.current = null;
       src?.close();
     };
-  }, [file, aspect, commit]);
+  }, [file, commit]);
 
   /* Draw the visible region onto the canvas whenever anything changes. */
   const draw = useCallback(() => {
@@ -134,11 +139,30 @@ export function ImageCropper({ file, aspect, shape, purpose, title = "Crop image
     }
     const ctx = c.getContext("2d");
     if (!ctx) return;
-    const r = cropRect(stateRef.current, img(), aspect);
     ctx.clearRect(0, 0, w, h);
     ctx.imageSmoothingQuality = "high";
+    if (adjustHeight) {
+      // Frame mode: the stage shows the whole picture; a second canvas previews exactly what the frame will keep.
+      ctx.drawImage(s.drawable, 0, 0, s.width, s.height, 0, 0, w, h);
+      const pc = previewRef.current;
+      const pctx = pc?.getContext("2d");
+      if (pc && pctx) {
+        const pw = Math.round((pc.clientWidth || 420) * dpr);
+        const ph = Math.max(1, Math.round(pw / aspect));
+        if (pc.width !== pw || pc.height !== ph) {
+          pc.width = pw;
+          pc.height = ph;
+        }
+        const r = cropRect(stateRef.current, img(), aspect);
+        pctx.clearRect(0, 0, pw, ph);
+        pctx.imageSmoothingQuality = "high";
+        pctx.drawImage(s.drawable, r.x, r.y, r.w, r.h, 0, 0, pw, ph);
+      }
+      return;
+    }
+    const r = cropRect(stateRef.current, img(), aspect);
     ctx.drawImage(s.drawable, r.x, r.y, r.w, r.h, 0, 0, w, h);
-  }, [aspect]);
+  }, [aspect, adjustHeight]);
 
   useEffect(() => {
     if (ready) draw();
@@ -227,6 +251,12 @@ export function ImageCropper({ file, aspect, shape, purpose, title = "Crop image
     e.currentTarget.setPointerCapture(e.pointerId);
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     pinch.current = null;
+    if (adjustHeight && ready && pointers.current.size === 1) {
+      // Tapping anywhere on the picture puts the frame there.
+      const b = e.currentTarget.getBoundingClientRect();
+      const d0 = img();
+      commit(clampState({ ...stateRef.current, cx: ((e.clientX - b.left) / b.width) * d0.w, cy: ((e.clientY - b.top) / b.height) * d0.h }, d0, aspect));
+    }
   }
   function onPointerMove(e: React.PointerEvent) {
     const prev = pointers.current.get(e.pointerId);
@@ -241,6 +271,13 @@ export function ImageCropper({ file, aspect, shape, purpose, title = "Crop image
         commit(zoomBy(stateRef.current, dist / pinch.current, img(), aspect, mid));
       }
       pinch.current = dist;
+      return;
+    }
+    if (adjustHeight) {
+      // The stage shows the whole picture, so dragging moves the frame the same way the pointer moves.
+      const d0 = img();
+      const v = viewSize.current;
+      commit(clampState({ ...stateRef.current, cx: stateRef.current.cx + ((e.clientX - prev.x) * d0.w) / v.w, cy: stateRef.current.cy + ((e.clientY - prev.y) * d0.h) / v.h }, d0, aspect));
       return;
     }
     commit(panBy(stateRef.current, e.clientX - prev.x, e.clientY - prev.y, viewSize.current, img(), aspect));
@@ -280,7 +317,9 @@ export function ImageCropper({ file, aspect, shape, purpose, title = "Crop image
         <div>
           <h2 id={titleId} className="text-base font-semibold">{title}</h2>
           <p id={helpId} className="mt-1 text-sm text-muted">
-            Drag the picture to move it. Use the slider, pinch or scroll to zoom. With the picture focused: arrow keys move, plus and minus zoom, Enter confirms, Esc cancels.
+            {adjustHeight
+              ? "Drag the white frame (or tap anywhere on the picture) to choose what to keep. Zoom in for a tighter crop. With the picture focused: arrow keys move, plus and minus zoom, Enter confirms, Esc cancels."
+              : "Drag the picture to move it. Use the slider, pinch or scroll to zoom. With the picture focused: arrow keys move, plus and minus zoom, Enter confirms, Esc cancels."}
           </p>
         </div>
 
@@ -299,15 +338,80 @@ export function ImageCropper({ file, aspect, shape, purpose, title = "Crop image
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}
               onPointerCancel={onPointerUp}
-              style={{ aspectRatio: String(aspect), width: `min(100%, 420px, calc(46dvh * ${aspect}))`, touchAction: "none", ...checker }}
-              className="relative cursor-grab select-none overflow-hidden rounded-[10px] border border-line active:cursor-grabbing"
+              style={adjustHeight
+                ? { aspectRatio: String(d.w / d.h), width: `min(100%, 460px, calc(34dvh * ${d.w / d.h}))`, touchAction: "none", ...checker }
+                : { aspectRatio: String(aspect), width: `min(100%, 420px, calc(46dvh * ${aspect}))`, touchAction: "none", ...checker }}
+              className={`relative select-none overflow-hidden rounded-[10px] border border-line ${adjustHeight ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing"}`}
             >
               <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" aria-hidden="true" />
               {!ready && <div className="absolute inset-0 grid place-items-center bg-surface text-sm text-muted" role="status">Opening image…</div>}
-              {/* Mask: darkens whatever the chosen shape will cut away, then outlines the shape. */}
-              <div aria-hidden="true" data-testid="crop-mask" className="pointer-events-none absolute inset-0" style={{ borderRadius: radius, boxShadow: hasMask ? "0 0 0 999px rgba(0,0,0,0.55)" : undefined, outline: "2px solid rgba(255,255,255,0.9)", outlineOffset: hasMask ? 0 : -2 }} />
+              {adjustHeight && rect ? (
+                /* Frame: the whole picture stays visible and dimmed; the bright window is what the banner keeps. */
+                <div
+                  aria-hidden="true"
+                  data-testid="crop-mask"
+                  className="pointer-events-none absolute cursor-move"
+                  style={{ left: `${(rect.x / d.w) * 100}%`, top: `${(rect.y / d.h) * 100}%`, width: `${(rect.w / d.w) * 100}%`, height: `${(rect.h / d.h) * 100}%`, boxShadow: "0 0 0 999px rgba(0,0,0,0.6)", outline: "2px solid #fff" }}
+                >
+                  {["-left-1 -top-1", "-right-1 -top-1", "-left-1 -bottom-1", "-right-1 -bottom-1"].map((p) => (
+                    <span key={p} className={`absolute h-2.5 w-2.5 rounded-full border border-black/40 bg-white ${p}`} />
+                  ))}
+                </div>
+              ) : (
+                /* Mask: darkens whatever the chosen shape will cut away, then outlines the shape. */
+                <div aria-hidden="true" data-testid="crop-mask" className="pointer-events-none absolute inset-0" style={{ borderRadius: radius, boxShadow: hasMask ? "0 0 0 999px rgba(0,0,0,0.55)" : undefined, outline: "2px solid rgba(255,255,255,0.9)", outlineOffset: hasMask ? 0 : -2 }} />
+              )}
             </div>
 
+            {adjustHeight && rect && (rect.w / d.w < 0.97 || rect.h / d.h < 0.97) && (
+              <div className="w-full max-w-[460px]">
+                <p className="mb-1 flex justify-between text-xs font-medium text-muted"><span>Your banner will look like this</span>{out && <span className="tabular-nums">{out.w} × {out.h} px</span>}</p>
+                <canvas ref={previewRef} aria-hidden="true" data-testid="crop-preview" className="block w-full rounded-[10px] border border-line shadow-sm" style={{ aspectRatio: String(aspect), ...checker }} />
+              </div>
+            )}
+
+            {adjustHeight ? (
+              <div className="flex w-full max-w-[460px] flex-col gap-3 rounded-[12px] bg-surface-2 p-3">
+                <div role="group" aria-label="Banner height" className="grid grid-cols-4 gap-1 rounded-[10px] bg-surface p-1">
+                  {([["Slim", 6], ["Standard", 4], ["Wide", 2.5], ["Square", 1]] as const).map(([name, a]) => {
+                    const on = Math.abs(aspect - a) < 0.3;
+                    return (
+                      <button
+                        key={name}
+                        type="button"
+                        disabled={!ready || busy}
+                        aria-pressed={on}
+                        onClick={() => {
+                          aspectRef.current = a;
+                          setAspect(a);
+                          commit(zoomTo(stateRef.current, stateRef.current.zoom, d, a));
+                        }}
+                        className={`min-h-9 rounded-[8px] text-sm font-medium transition-colors ${on ? "bg-[var(--accent)] text-[var(--bg)] shadow-sm" : "text-muted hover:text-ink"}`}
+                      >
+                        {name}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="flex items-center gap-3">
+                  <label htmlFor={zoomId} className="w-10 text-sm font-medium">Zoom</label>
+                  <input
+                    id={zoomId}
+                    type="range"
+                    min={1}
+                    max={maxZoom}
+                    step={0.01}
+                    value={state.zoom}
+                    disabled={!ready || maxZoom <= 1}
+                    aria-valuetext={`${pct} percent`}
+                    onChange={(e) => commit(zoomTo(stateRef.current, Number(e.target.value), d, aspect))}
+                    className="range min-w-0 flex-1"
+                    style={{ "--fill": `${maxZoom > 1 ? ((state.zoom - 1) / (maxZoom - 1)) * 100 : 0}%` } as React.CSSProperties}
+                  />
+                  <span className="w-10 text-right text-xs tabular-nums text-muted">{pct}%</span>
+                </div>
+              </div>
+            ) : (
             <div className="flex w-full max-w-[420px] items-center gap-2">
               <button type="button" className={small} aria-label="Zoom out" disabled={!ready || state.zoom <= 1} onClick={() => commit(zoomBy(stateRef.current, 1 / ZOOM_STEP, d, aspect))}>−</button>
               <label htmlFor={zoomId} className="sr-only">Zoom</label>
@@ -325,9 +429,10 @@ export function ImageCropper({ file, aspect, shape, purpose, title = "Crop image
               />
               <button type="button" className={small} aria-label="Zoom in" disabled={!ready || state.zoom >= maxZoom} onClick={() => commit(zoomBy(stateRef.current, ZOOM_STEP, d, aspect))}>+</button>
             </div>
+            )}
 
             <p role="status" aria-live="polite" className="min-h-5 text-center text-xs text-muted" data-testid="crop-readout">
-              {out ? `Result: ${out.w} × ${out.h} px.` : ""}
+              {out && !(adjustHeight && rect && (rect.w / d.w < 0.97 || rect.h / d.h < 0.97)) ? `Result: ${out.w} × ${out.h} px.` : ""}
               {lowRes ? " Zoomed in far, so it may look blurry." : ""}
             </p>
           </div>

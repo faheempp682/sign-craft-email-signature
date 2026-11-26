@@ -240,3 +240,46 @@ button:disabled,
 .ai-pop { animation: ai-pop .22s ease-out; }
 .ai-fade { animation: ai-fade .2s ease-out; }
 .ai-dot { width: .4rem; height: .4rem; border-radius: 9999px; background: currentColor; opacity: .4; animation: ai-bounce 1s infinite; }
+
+/* Slim, filled range slider used by the banner cropper. --fill is the filled share of the track. */
+.range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 20px;
+  background: transparent;
+  cursor: pointer;
+}
+.range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--accent) var(--fill, 0%), var(--border) var(--fill, 0%));
+}
+.range::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border);
+}
+.range::-moz-range-progress {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -7px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--accent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+.range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--accent);
+}
+.range:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 999px; }
+.range:disabled { opacity: 0.5; cursor: default; }
