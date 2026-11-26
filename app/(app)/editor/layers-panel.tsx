@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import { ICON_LABEL } from "@/lib/create/fill";
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -57,9 +58,11 @@ function summary(b: Block): string {
   }
 }
 
-function Row({ id, block, selected, onSelect, onRename, onHide, onLock, onDuplicate, onDelete }: {
+function Row({ id, block, selected, onSelect, onRename, onHide, onLock, onDuplicate, onDelete, tree }: {
   id: string; block: Block; selected: boolean;
   onSelect: (shift: boolean) => void; onRename: (name: string) => void; onHide: () => void; onLock: () => void; onDuplicate: () => void; onDelete: () => void;
+  /** A row: its contents are listed under it, and this folds them. */
+  tree?: { open: boolean; toggle: () => void; children: ReactNode };
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: !!block.locked });
   const [editing, setEditing] = useState(false);
@@ -70,8 +73,13 @@ function Row({ id, block, selected, onSelect, onRename, onHide, onLock, onDuplic
       data-layer={id}
       aria-current={selected ? "true" : undefined}
       style={{ transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 10 : undefined, position: "relative" }}
-      className={`group flex items-center gap-0.5 rounded-lg border pr-1 ${selected ? "border-accent bg-accent-soft" : "border-transparent hover:bg-surface-2"} ${block.hidden ? "opacity-50" : ""} ${isDragging ? "shadow-lg" : ""}`}
     >
+    <div className={`group flex items-center gap-0.5 rounded-lg border pr-1 ${selected ? "border-accent bg-accent-soft" : "border-transparent hover:bg-surface-2"} ${block.hidden ? "opacity-50" : ""} ${isDragging ? "shadow-lg" : ""}`}>
+      {tree && (
+        <button type="button" className={btn} aria-expanded={tree.open} aria-label={`${tree.open ? "Collapse" : "Expand"} ${name}`} onClick={tree.toggle}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={tree.open ? "rotate-90" : ""}><path d="m9 6 6 6-6 6" /></svg>
+        </button>
+      )}
       <button ref={setActivatorNodeRef} {...attributes} {...listeners} aria-label={`Drag to reorder ${name}`} disabled={!!block.locked} className={`${btn} cursor-grab touch-none`}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M9 6h.01M9 12h.01M9 18h.01M15 6h.01M15 12h.01M15 18h.01" /></svg>
       </button>
@@ -103,11 +111,98 @@ function Row({ id, block, selected, onSelect, onRename, onHide, onLock, onDuplic
       </button>
       <button type="button" className={`${btn} hidden group-hover:grid group-focus-within:grid`} aria-label={`Duplicate ${name}`} onClick={onDuplicate}>⧉</button>
       <button type="button" className={`${btn} hidden group-hover:grid group-focus-within:grid`} aria-label={`Delete ${name}`} disabled={!!block.locked} onClick={onDelete}>✕</button>
+    </div>
+    {tree?.open && tree.children}
     </li>
   );
 }
 
-export function LayersPanel({ blocks, ids, selected, atLimit, onSelect, onReorder, onRename, onHide, onLock, onDuplicate, onDelete, onAdd, onAddRow, addTarget, onClearTarget, onPaletteDrag }: {
+/** What the layers panel needs to list, select and manage the blocks inside a row. Paths are [topIndex, col, index, ...]. */
+export type NestedLayers = {
+  /** The selected nested block: its row's id and the path from that row. */
+  selected: { id: string; rest: number[] } | null;
+  onSelect: (topIndex: number, rest: number[]) => void;
+  onRename: (path: number[], name: string) => void;
+  onHide: (path: number[]) => void;
+  onDuplicate: (path: number[]) => void;
+  onDelete: (path: number[]) => void;
+};
+
+const nestedName = (b: Block): string => b.layer || (b.type === "icontext" ? ICON_LABEL[b.icon] : BLOCK_LABEL[b.type]);
+const sameRest = (a: readonly number[], b: readonly number[]) => a.length === b.length && a.every((n, i) => n === b[i]);
+
+function NestedItem({ block, selected, onSelect, onRename, onHide, onDuplicate, onDelete, children }: {
+  block: Block; selected: boolean; onSelect: () => void; onRename: (name: string) => void; onHide: () => void; onDuplicate: () => void; onDelete: () => void; children?: ReactNode;
+}) {
+  const [editing, setEditing] = useState(false);
+  const name = nestedName(block);
+  return (
+    <li aria-current={selected ? "true" : undefined}>
+      <div className={`group flex items-center gap-0.5 rounded-lg border pl-1 pr-1 ${selected ? "border-accent bg-accent-soft" : "border-transparent hover:bg-surface-2"} ${block.hidden ? "opacity-50" : ""}`}>
+        {editing ? (
+          <input
+            autoFocus
+            aria-label="Layer name"
+            className="field h-7 min-w-0 flex-1 px-2 text-sm"
+            defaultValue={block.layer ?? ""}
+            placeholder={name}
+            maxLength={40}
+            onBlur={(e) => { setEditing(false); onRename(e.target.value); }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+              if (e.key === "Escape") setEditing(false);
+            }}
+          />
+        ) : (
+          <button type="button" className="min-w-0 flex-1 py-1 pl-1 text-left" onClick={onSelect} onDoubleClick={() => setEditing(true)} title="Double-click to rename">
+            <span className="block truncate text-[13px] font-medium">{name}</span>
+            <span className="block truncate text-[11px] text-muted">{summary(block) || BLOCK_LABEL[block.type]}</span>
+          </button>
+        )}
+        <button type="button" className={`${btn} h-7 w-7`} aria-label={`${block.hidden ? "Show" : "Hide"} ${name} in row`} aria-pressed={!!block.hidden} onClick={onHide}>{block.hidden ? "◌" : "◉"}</button>
+        <button type="button" className={`${btn} hidden h-7 w-7 group-hover:grid group-focus-within:grid`} aria-label={`Duplicate ${name} in row`} onClick={onDuplicate}>⧉</button>
+        <button type="button" className={`${btn} hidden h-7 w-7 group-hover:grid group-focus-within:grid`} aria-label={`Delete ${name} from row`} onClick={onDelete}>✕</button>
+      </div>
+      {children}
+    </li>
+  );
+}
+
+/** The columns of a row and the blocks in each, indented under it. Rows inside columns nest the same way. */
+function NestedTree({ topIndex, rowId, row, rest, nested }: { topIndex: number; rowId: string; row: Extract<Block, { type: "row" }>; rest: number[]; nested: NestedLayers }) {
+  return (
+    <ul className="ml-5 mt-0.5 space-y-1 border-l border-line pl-1.5" aria-label="Inside the row">
+      {row.columns.map((c, ci) => (
+        <li key={ci}>
+          <p className="px-1 pb-0.5 pt-1 text-[10px] font-semibold uppercase tracking-wide text-muted">Column {ci + 1}</p>
+          {c.blocks.length === 0 && <p className="px-1 pb-1 text-[11px] text-muted">Empty</p>}
+          <ul className="space-y-0.5">
+            {c.blocks.map((b, bi) => {
+              const at = [...rest, ci, bi];
+              const path = [topIndex, ...at];
+              return (
+                <NestedItem
+                  key={bi}
+                  block={b}
+                  selected={!!nested.selected && nested.selected.id === rowId && sameRest(nested.selected.rest, at)}
+                  onSelect={() => nested.onSelect(topIndex, at)}
+                  onRename={(n) => nested.onRename(path, n)}
+                  onHide={() => nested.onHide(path)}
+                  onDuplicate={() => nested.onDuplicate(path)}
+                  onDelete={() => nested.onDelete(path)}
+                >
+                  {b.type === "row" && <NestedTree topIndex={topIndex} rowId={rowId} row={b} rest={at} nested={nested} />}
+                </NestedItem>
+              );
+            })}
+          </ul>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function LayersPanel({ blocks, ids, selected, atLimit, onSelect, onReorder, onRename, onHide, onLock, onDuplicate, onDelete, onAdd, onAddRow, addTarget, onClearTarget, onPaletteDrag, nested }: {
   blocks: Block[]; ids: string[]; selected: string[]; atLimit: boolean;
   onSelect: (id: string, shift: boolean) => void; onReorder: (from: number, to: number) => void; onRename: (i: number, name: string) => void;
   onHide: (i: number) => void; onLock: (i: number) => void; onDuplicate: (i: number) => void; onDelete: (i: number) => void; onAdd: (presetId: string) => void; onAddRow?: (presetId: string) => void;
@@ -115,8 +210,13 @@ export function LayersPanel({ blocks, ids, selected, atLimit, onSelect, onReorde
   addTarget?: string | null; onClearTarget?: () => void;
   /** Called with true while an element from "Add element" is being dragged toward the canvas. */
   onPaletteDrag?: (on: boolean) => void;
+  /** When given, each row's contents are listed under it (columns, then their blocks). */
+  nested?: NestedLayers;
 }) {
   const [tab, setTab] = useState<"layers" | "elements">("layers");
+  /** Rows the person folded shut. Rows start open so an AI design shows everything it contains. */
+  const [folded, setFolded] = useState<Set<string>>(() => new Set());
+  const toggleFold = (id: string) => setFolded((cur) => { const next = new Set(cur); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
   const onDragEnd = (e: DragEndEvent) => {
     if (!e.over || e.active.id === e.over.id) return;
@@ -148,6 +248,7 @@ export function LayersPanel({ blocks, ids, selected, atLimit, onSelect, onReorde
                     onLock={() => onLock(i)}
                     onDuplicate={() => onDuplicate(i)}
                     onDelete={() => onDelete(i)}
+                    tree={nested && b.type === "row" ? { open: !folded.has(ids[i]), toggle: () => toggleFold(ids[i]), children: <NestedTree topIndex={i} rowId={ids[i]} row={b} rest={[]} nested={nested} /> } : undefined}
                   />
                 ))}
               </ul>

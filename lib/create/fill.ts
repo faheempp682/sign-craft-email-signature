@@ -73,6 +73,119 @@ export function validateDetails(d: Details): Partial<Record<keyof Details, strin
 
 const clean = (s: string) => s.trim() || undefined;
 
+type IconLine = Extract<Block, { type: "icontext" }>;
+type TextLine = Extract<Block, { type: "text" }>;
+
+/**
+ * The simple form fills the name, job title and company through an identity block. A design built from plain text blocks
+ * (which is what an AI sometimes writes for a name line and a title line) has nothing for those fields to bind to, so the
+ * first text block becomes the name and a text block straight after it the title. Designs that already have an identity
+ * block are returned untouched.
+ */
+export function ensureIdentity(doc: SignatureDoc): SignatureDoc {
+  const hasIdentity = (blocks: Block[]): boolean => blocks.some((b) => b.type === "identity" || (b.type === "row" && b.columns.some((c) => hasIdentity(c.blocks))));
+  if (hasIdentity(doc.blocks)) return doc;
+  let done = false;
+  const oneLine = (s: string) => s.replace(/\s+/g, " ").trim().slice(0, 100);
+  const go = (blocks: Block[]): Block[] => {
+    const out: Block[] = [];
+    for (let i = 0; i < blocks.length; i++) {
+      const b = blocks[i];
+      if (b.type === "row") {
+        out.push({ ...b, columns: b.columns.map((c) => ({ ...c, blocks: go(c.blocks) })) });
+      } else if (!done && b.type === "text" && oneLine(b.text)) {
+        done = true;
+        const next = blocks[i + 1];
+        const title = next && next.type === "text" && !next.href && oneLine(next.text) ? oneLine(next.text) : undefined;
+        out.push({ type: "identity", name: oneLine(b.text), title, style: b.style, layer: b.layer });
+        if (title) i++;
+      } else {
+        out.push(b);
+      }
+    }
+    return out;
+  };
+  const blocks = go(doc.blocks);
+  return done ? { ...doc, blocks } : doc;
+}
+
+/* ---------- the design's own lines: every icon + text line and text block gets a field of its own ---------- */
+
+/** What a line holds, which decides how it is checked and linked: an email gets mailto:, a phone tel:, a website https. */
+export type ExtraKind = "email" | "phone" | "website" | "address" | "link" | "text";
+/** One form field for one line of the design. `key` is the line's position (indices down through rows and columns), e.g. "0.1.2". */
+export type Extra = { key: string; label: string; kind: ExtraKind };
+
+const ICON_KIND: Record<IconLine["icon"], ExtraKind> = { mail: "email", phone: "phone", globe: "website", pin: "address", link: "link", calendar: "text", clock: "text", user: "text", briefcase: "text", star: "text", check: "text", chat: "text" };
+export const ICON_LABEL: Record<IconLine["icon"], string> = { mail: "Email", phone: "Phone", globe: "Website", pin: "Address", link: "Link", calendar: "Booking or schedule", clock: "Opening hours", user: "Contact person", briefcase: "Role or department", star: "Highlight", check: "Highlight", chat: "Chat or messenger" };
+
+/** Visits each icon + text line and text block in reading order with its position key. */
+function eachLine(blocks: Block[], visit: (b: IconLine | TextLine, key: string) => void, prefix = ""): void {
+  blocks.forEach((b, i) => {
+    const key = prefix ? `${prefix}.${i}` : `${i}`;
+    if (b.type === "row") b.columns.forEach((c, ci) => eachLine(c.blocks, visit, `${key}.${ci}`));
+    else if (b.type === "icontext" || b.type === "text") visit(b, key);
+  });
+}
+
+/** The fields a design needs beyond the fixed ones (name, contact block, socials, photo...): one per line it contains. */
+export function extraFields(doc: SignatureDoc): Extra[] {
+  const out: Extra[] = [];
+  const seen = new Map<string, number>();
+  eachLine(doc.blocks, (b, key) => {
+    const base = b.type === "icontext" ? ICON_LABEL[b.icon] : "Text line";
+    const n = (seen.get(base) ?? 0) + 1;
+    seen.set(base, n);
+    out.push({ key, label: n > 1 ? `${base} ${n}` : base, kind: b.type === "icontext" ? ICON_KIND[b.icon] : "text" });
+  });
+  return out;
+}
+
+/** What each line says now, keyed like `extraFields`, to pre-fill the form. A hidden line reads as empty. */
+export function extractExtras(doc: SignatureDoc): Record<string, string> {
+  const out: Record<string, string> = {};
+  eachLine(doc.blocks, (b, key) => void (out[key] = b.hidden ? "" : b.text));
+  return out;
+}
+
+/** Problems with what was typed into the line fields, by key. Empty = fine. */
+export function validateExtras(doc: SignatureDoc, extras: Record<string, string>): Record<string, string> {
+  const errors: Record<string, string> = {};
+  for (const x of extraFields(doc)) {
+    const v = (extras[x.key] ?? "").trim();
+    if (!v) continue;
+    if (x.kind === "email" && !EMAIL.test(v)) errors[x.key] = "That email address does not look right.";
+    else if ((x.kind === "website" || x.kind === "link") && !toHttps(v)) errors[x.key] = "Enter a web address like example.com.";
+  }
+  return errors;
+}
+
+/** An icon line carrying the person's value, linked the way its kind calls for (mailto:, tel:, https). */
+function lineWith(b: IconLine, kind: ExtraKind, value: string): IconLine {
+  const web = kind === "website" || kind === "link" ? toHttps(value) : "";
+  const href = kind === "email" ? (EMAIL.test(value) ? `mailto:${value}` : undefined) : kind === "phone" ? (/\d/.test(value) ? `tel:${value.replace(/[^\d+]/g, "")}` : undefined) : web || undefined;
+  const text = web ? value.replace(/^https?:\/\//i, "").replace(/\/$/, "") : value;
+  return { ...b, text: text.slice(0, 200), href, hidden: undefined };
+}
+
+/**
+ * Writes the line fields into a design, changing only those lines. A line emptied in the form is hidden (it comes back when
+ * typed into again); a line with no entry in `extras` is left as it is. The design's shape never changes, so keys stay valid.
+ */
+export function applyExtras(doc: SignatureDoc, extras: Record<string, string>): SignatureDoc {
+  const kinds = new Map(extraFields(doc).map((x) => [x.key, x.kind]));
+  const go = (blocks: Block[], prefix = ""): Block[] =>
+    blocks.map((b, i): Block => {
+      const key = prefix ? `${prefix}.${i}` : `${i}`;
+      if (b.type === "row") return { ...b, columns: b.columns.map((c, ci) => ({ ...c, blocks: go(c.blocks, `${key}.${ci}`) })) };
+      if ((b.type !== "icontext" && b.type !== "text") || !(key in extras)) return b;
+      const v = extras[key].trim();
+      if (!v) return { ...b, hidden: true };
+      return b.type === "text" ? { ...b, text: v.slice(0, 600), hidden: undefined } : lineWith(b, kinds.get(key) ?? "text", v);
+    });
+  return { ...doc, blocks: go(doc.blocks) };
+}
+
 /**
  * Promotional and free-text blocks hold the template author's sample copy and links (another person's listing, a review page
  * for someone else's company, a legal notice). None of it is the customer's, so these blocks are dropped; they can add their

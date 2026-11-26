@@ -7,7 +7,7 @@ import { SignaturePreview } from "@/components/signature-preview";
 import { SignaturePreviewDialog } from "@/components/signature-preview-dialog";
 import { ImageCropper } from "@/components/image-cropper";
 import { applyBrand, paletteFromImage, type Brand } from "@/lib/create/brand";
-import { applyDetails, applyDetailsPreview, applyImages, EMPTY_DETAILS, extractDetails, imageSlots, patchDetails, sampleDetails, validateDetails, type Details, type ImageSlot, type SlotImage } from "@/lib/create/fill";
+import { applyDetails, applyDetailsPreview, applyExtras, applyImages, EMPTY_DETAILS, extractDetails, extractExtras, extraFields, imageSlots, patchDetails, sampleDetails, validateDetails, validateExtras, type Details, type Extra, type ImageSlot, type SlotImage } from "@/lib/create/fill";
 import { canCrop } from "@/lib/editor/crop";
 import { uploadImage } from "@/lib/editor/upload";
 import { clearDetails, loadBrand, loadCustom, loadDraftDetails, loadImages, markHandoff, saveBrand, saveCustom, saveDetails, saveImages } from "@/lib/create/session";
@@ -51,7 +51,7 @@ function Icon({ d }: { d: string }) {
   );
 }
 
-export function CreateStudio({ header, canUpload = false, initialId, editId }: { header: ReactNode; canUpload?: boolean; /** A saved signature being edited: Save updates it instead of making a new one. */ editId?: string; /** Open this template straight away (coming back from the compare step). */ initialId?: string }) {
+export function CreateStudio({ header, canUpload = false, initialId, editId, editName, startDoc }: { header: ReactNode; canUpload?: boolean; /** A saved signature being edited: Save updates it instead of making a new one. */ editId?: string; /** Its current name, kept on Save. */ editName?: string; /** Its design: the form opens filled in from this, exactly as when coming back from the advanced editor. */ startDoc?: SignatureDoc; /** Open this template straight away (coming back from the compare step). */ initialId?: string }) {
   const router = useRouter();
   const [id, setId] = useState<string | null>(initialId ?? null);
   const [d, setD] = useState<Details>(EMPTY_DETAILS);
@@ -77,6 +77,9 @@ export function CreateStudio({ header, canUpload = false, initialId, editId }: {
    * (every block they added or styled), and the form only changes the fields it covers. Null: a fresh copy of the template.
    */
   const [custom, setCustom] = useState<SignatureDoc | null>(null);
+  /** What the person typed into the fields made from the design's own lines (hours, a second phone, a tagline...), by line position. */
+  const [extras, setExtras] = useState<Record<string, string>>({});
+  const [extraErrors, setExtraErrors] = useState<Record<string, string>>({});
 
   /** Loads the picture first: that proves the link works, and gives its shape so a banner can match it. */
   async function applyImageUrl(slot: ImageSlot) {
@@ -121,9 +124,11 @@ export function CreateStudio({ header, canUpload = false, initialId, editId }: {
     setImages(loadImages());
     setBrand(loadBrand());
     // Back from the advanced editor: show what they changed there, not the template as it was.
-    const edited = initialId ? loadCustom(initialId) : null;
+    const edited = startDoc ?? (initialId ? loadCustom(initialId) : null);
+    if (startDoc) saveCustom(startDoc);
     if (edited) {
       setCustom(edited);
+      setExtras(extractExtras(edited));
       const next = { ...EMPTY_DETAILS, ...extractDetails(edited) };
       setD(next);
       saveDetails(next);
@@ -132,7 +137,8 @@ export function CreateStudio({ header, canUpload = false, initialId, editId }: {
       const base = new Map((sample ? imageSlots(sample.doc) : []).map((s) => [s.key, s.src]));
       const theirs: Record<string, SlotImage> = {};
       for (const s of imageSlots(edited)) if (base.get(s.key) !== s.src) theirs[s.key] = { url: s.src, fit: "cover" };
-      setImages((cur) => ({ ...cur, ...theirs }));
+      // A saved signature starts from its own pictures only, never ones left over from another signature in this tab.
+      setImages((cur) => (startDoc ? theirs : { ...cur, ...theirs }));
     }
     setRestored(true);
     // runs once, on arrival
@@ -167,7 +173,7 @@ export function CreateStudio({ header, canUpload = false, initialId, editId }: {
   // The open template lives in the address (/create?t=...), so Back from the editor or the compare step reopens it.
   // replaceState, not a push: switching templates must not pile up history entries, and nothing needs fetching.
   useEffect(() => {
-    const url = id ? `/create?t=${encodeURIComponent(id)}` : "/create";
+    const url = editId ? `/create?s=${editId}` : id ? `/create?t=${encodeURIComponent(id)}` : "/create";
     if (window.location.pathname + window.location.search !== url) window.history.replaceState(window.history.state, "", url);
   }, [id]);
 
@@ -193,12 +199,14 @@ export function CreateStudio({ header, canUpload = false, initialId, editId }: {
   /** The finished design from the form: on their editor version the fields are patched in place, on a template the sample copy is cleared. */
   const filledDoc = (): SignatureDoc | null => {
     if (!preset) return null;
-    return custom ? patchDetails(applyImages(custom, customImages), d) : applyDetails(applyImages(applyBrand(preset.doc, activeBrand), images), d);
+    return custom ? applyExtras(patchDetails(applyImages(custom, customImages), d), extras) : applyDetails(applyImages(applyBrand(preset.doc, activeBrand), images), d);
   };
+  /** One field for each line the design itself contains (hours, a second phone, a tagline...), so nothing in it is left uneditable here. */
+  const extraList = useMemo(() => (custom ? extraFields(custom) : []), [custom]);
 
   const types = useMemo(() => (baseDoc ? blockTypes(baseDoc.blocks) : new Set<Block["type"]>()), [baseDoc]);
   // Until something is typed, the template's own sample shows; each field the person fills replaces its sample.
-  const html = useMemo(() => (!preset ? "" : renderToEmailHtml(custom ? patchDetails(applyImages(custom, customImages), d) : applyDetailsPreview(applyImages(applyBrand(preset.doc, activeBrand), images), d))), [preset, custom, customImages, d, images, activeBrand]);
+  const html = useMemo(() => (!preset ? "" : renderToEmailHtml(custom ? applyExtras(patchDetails(applyImages(custom, customImages), d), extras) : applyDetailsPreview(applyImages(applyBrand(preset.doc, activeBrand), images), d))), [preset, custom, customImages, d, images, activeBrand, extras]);
   const samples = useMemo(() => (baseDoc ? sampleDetails(baseDoc) : {}), [baseDoc]);
   /** The networks every template offers, plus any other network this template's own social block uses. */
   const socialSpecs = useMemo(() => {
@@ -240,13 +248,25 @@ export function CreateStudio({ header, canUpload = false, initialId, editId }: {
     if (errors[key]) setErrors((e) => ({ ...e, [key]: undefined }));
   }
 
+  function updateExtra(key: string, value: string) {
+    const next = { ...extras, [key]: value };
+    setExtras(next);
+    if (custom) saveCustom(applyExtras(custom, next)); // kept for this tab, so a refresh does not lose it
+    setSavedId(null);
+    setNote("");
+    if (extraErrors[key]) setExtraErrors((e) => Object.fromEntries(Object.entries(e).filter(([k]) => k !== key)));
+  }
+
   /** The finished signature (the template's sample copy removed), or null after pointing at what is wrong. */
   function finished() {
     if (!preset) return null;
     const found = validateDetails(d);
+    const foundExtras = custom ? validateExtras(custom, extras) : {};
     setErrors(found);
-    if (Object.keys(found).length) {
-      document.getElementById(`s-${Object.keys(found)[0]}`)?.focus();
+    setExtraErrors(foundExtras);
+    if (Object.keys(found).length || Object.keys(foundExtras).length) {
+      const first = Object.keys(found)[0];
+      document.getElementById(first ? `s-${first}` : `s-x-${Object.keys(foundExtras)[0]}`)?.focus();
       return null;
     }
     return filledDoc();
@@ -256,7 +276,7 @@ export function CreateStudio({ header, canUpload = false, initialId, editId }: {
   async function persist(doc: NonNullable<ReturnType<typeof filledDoc>>): Promise<string> {
     if (!preset) return "";
     try {
-      const res = await fetch("/api/signatures", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: savedId ?? editId, name: `${d.name.trim()} · ${preset.name}`.slice(0, 100), doc }) });
+      const res = await fetch("/api/signatures", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: savedId ?? editId, name: (editId && editName ? editName : `${d.name.trim()} · ${preset.name}`).slice(0, 100), doc }) });
       const data = (await res.json().catch(() => null)) as { id?: string; message?: string } | null;
       if (res.ok && data?.id) {
         setSavedId(data.id);
@@ -303,7 +323,7 @@ export function CreateStudio({ header, canUpload = false, initialId, editId }: {
     if (!finished()) return; // same checks as saving: points at anything invalid
     // The editor gets the template's whole skeleton: what they typed replaces the sample, and every other element (contact lines,
     // social links, footer, banner) stays as editable dummy content instead of vanishing.
-    const doc = custom ? patchDetails(applyImages(custom, customImages), d) : applyDetailsPreview(applyImages(applyBrand(preset.doc, activeBrand), images), d);
+    const doc = custom ? applyExtras(patchDetails(applyImages(custom, customImages), d), extras) : applyDetailsPreview(applyImages(applyBrand(preset.doc, activeBrand), images), d);
     const storage = getStorage();
     if (!storage || !saveDraft(storage, doc)) {
       setError("Your browser is blocking local storage, so the signature could not be opened in the editor. Allow site data and try again.");
@@ -461,6 +481,35 @@ export function CreateStudio({ header, canUpload = false, initialId, editId }: {
     </fieldset>
   );
 
+  const extraField = (x: Extra) => (
+    <div key={x.key}>
+      <label htmlFor={`s-x-${x.key}`} className="mb-1 block text-sm font-medium">
+        {x.label}
+        <span className="ml-1 font-normal text-muted">(optional)</span>
+      </label>
+      <input
+        id={`s-x-${x.key}`}
+        className="field w-full"
+        type={x.kind === "email" ? "email" : x.kind === "phone" ? "tel" : "text"}
+        value={extras[x.key] ?? ""}
+        maxLength={x.kind === "text" ? 600 : 200}
+        aria-invalid={!!extraErrors[x.key]}
+        aria-describedby={extraErrors[x.key] ? `sxe-${x.key}` : undefined}
+        onChange={(e) => updateExtra(x.key, e.target.value)}
+      />
+      {extraErrors[x.key] && <p id={`sxe-${x.key}`} className="mt-1 text-sm text-red-600 dark:text-red-400">{extraErrors[x.key]}</p>}
+    </div>
+  );
+
+  /** A group of fields made from the design's own lines. Nothing is shown for an empty list. */
+  const extraGroup = (title: string, list: Extra[]) =>
+    list.length > 0 && (
+      <fieldset className="space-y-3">
+        <legend className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">{title}</legend>
+        {list.map(extraField)}
+      </fieldset>
+    );
+
   const group = (title: string, specs: Spec[]) => (
     <fieldset className="space-y-3">
       <legend className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">{title}</legend>
@@ -531,6 +580,8 @@ export function CreateStudio({ header, canUpload = false, initialId, editId }: {
                 {slots.length > 0 && imageGroup()}
                 {group("About you", types.has("identity") ? ABOUT : ABOUT.slice(0, 1))}
                 {types.has("contact") && group("How to reach you", REACH)}
+                {extraGroup("How to reach you", extraList.filter((x) => ["email", "phone", "website", "address"].includes(x.kind)))}
+                {extraGroup("More in your design", extraList.filter((x) => !["email", "phone", "website", "address"].includes(x.kind)))}
                 {types.has("social") && group("Social links", socialSpecs)}
                 {types.has("disclaimer") && group("Footer line", NOTE)}
                 {types.has("button") && group("Button", BUTTON)}

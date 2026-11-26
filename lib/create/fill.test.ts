@@ -3,7 +3,7 @@ import { PRESETS } from "@/lib/presets";
 import { SignatureDocSchema, type Block } from "@/lib/schema/document";
 import { renderToEmailHtml } from "@/lib/renderer/email-html";
 import { envSignatureLimit, parseLimit } from "@/lib/signature-limit";
-import { EMPTY_DETAILS, applyDetails, applyDetailsPreview, applyImages, extractDetails, imageSlots, patchDetails, socialUrl, toHttps, validateDetails, type Details } from "./fill";
+import { EMPTY_DETAILS, applyDetails, applyDetailsPreview, applyExtras, applyImages, ensureIdentity, extractDetails, extractExtras, extraFields, imageSlots, patchDetails, socialUrl, toHttps, validateDetails, validateExtras, type Details } from "./fill";
 
 const jane = { ...EMPTY_DETAILS, name: "Jane Cooper", title: "Head of Sales", company: "Acme", phone: "+1 555 0100", email: "jane@acme.com", website: "acme.com", linkedin: "janecooper", twitter: "@jane" };
 
@@ -14,6 +14,82 @@ function walk(blocks: Block[], out: Block[] = []): Block[] {
   }
   return out;
 }
+
+describe("ensureIdentity (a name and title written as plain text still get form fields)", () => {
+  const text = (t: string, extra: object = {}) => ({ type: "text", text: t, variant: "body", ...extra });
+  const textual = () => SignatureDocSchema.parse({ ...PRESETS[0].doc, blocks: [{ type: "row", columns: [{ blocks: [{ type: "avatar", src: "https://placehold.co/160x160.png", size: 96 }] }, { blocks: [text("TUIDER ES\nJOSSEN", { style: { textTransform: "uppercase" } }), text("Team leader"), { type: "social", links: [{ network: "instagram", url: "https://www.instagram.com/" }] }] }] }] });
+
+  it("turns the first text block into the name and the next one into the title, keeping its style and place", () => {
+    const doc = ensureIdentity(textual());
+    expect(extractDetails(doc)).toMatchObject({ name: "TUIDER ES JOSSEN", title: "Team leader" });
+    const id = walk(doc.blocks).find((b) => b.type === "identity");
+    expect(id).toMatchObject({ style: { textTransform: "uppercase" } });
+    expect(walk(doc.blocks).filter((b) => b.type === "text")).toHaveLength(0);
+    expect(walk(doc.blocks).map((b) => b.type)).toEqual(["row", "avatar", "identity", "social"]);
+    expect(SignatureDocSchema.safeParse(doc).success).toBe(true);
+  });
+
+  it("leaves a design that already has an identity block exactly as it is", () => {
+    const withId = SignatureDocSchema.parse({ ...PRESETS[0].doc, blocks: [{ type: "identity", name: "Jane" }, text("A tagline")] });
+    expect(ensureIdentity(withId)).toBe(withId);
+  });
+});
+
+describe("every line of an AI design gets a form field of its own", () => {
+  const line = (icon: string, text: string) => ({ type: "icontext", icon, text, size: 16 });
+  const ai = () =>
+    SignatureDocSchema.parse({
+      ...PRESETS[0].doc,
+      blocks: [
+        { type: "identity", name: "Tuider Es Jossen", title: "Team leader" },
+        { type: "row", columns: [{ blocks: [line("mail", "email@example.com"), line("globe", "example.com"), line("clock", "Mon-Fri 9-5")] }, { blocks: [line("phone", "+123456789"), line("phone", "+987654321"), line("pin", "21B Street, California"), { type: "text", text: "Award winner", variant: "body" }] }] },
+      ],
+    });
+  const field = (doc: ReturnType<typeof ai>, label: string) => extraFields(doc).find((x) => x.label === label)!;
+
+  it("lists a field per line, labelled and typed by its icon, in reading order, even for repeats and unusual icons", () => {
+    expect(extraFields(ai()).map((x) => [x.label, x.kind])).toEqual([
+      ["Email", "email"], ["Website", "website"], ["Opening hours", "text"],
+      ["Phone", "phone"], ["Phone 2", "phone"], ["Address", "address"], ["Text line", "text"],
+    ]);
+    expect(Object.values(extractExtras(ai()))).toEqual(["email@example.com", "example.com", "Mon-Fri 9-5", "+123456789", "+987654321", "21B Street, California", "Award winner"]);
+  });
+
+  it("writes what was typed into exactly that line, linking it by kind and leaving every other line alone", () => {
+    const doc = ai();
+    const out = applyExtras(doc, { ...extractExtras(doc), [field(doc, "Email").key]: "jane@acme.com", [field(doc, "Phone 2").key]: "+44 20 7946 0000", [field(doc, "Website").key]: "https://acme.com/", [field(doc, "Opening hours").key]: "By appointment" });
+    const lines = walk(out.blocks).filter((b): b is Extract<Block, { type: "icontext" }> => b.type === "icontext");
+    expect(lines.map((l) => l.text)).toEqual(["jane@acme.com", "acme.com", "By appointment", "+123456789", "+44 20 7946 0000", "21B Street, California"]);
+    expect([lines[0].href, lines[1].href, lines[2].href, lines[3].href, lines[4].href]).toEqual(["mailto:jane@acme.com", "https://acme.com/", undefined, "tel:+123456789", "tel:+442079460000"]);
+    expect(SignatureDocSchema.safeParse(out).success).toBe(true);
+  });
+
+  it("an emptied line is hidden and comes back when typed into again; a text block follows the same rule", () => {
+    const doc = ai();
+    const key = field(doc, "Phone 2").key;
+    const textKey = field(doc, "Text line").key;
+    const hidden = applyExtras(doc, { ...extractExtras(doc), [key]: "", [textKey]: "" });
+    expect(extractExtras(hidden)[key]).toBe("");
+    expect(walk(hidden.blocks).filter((b) => "hidden" in b && b.hidden).map((b) => b.type)).toEqual(["icontext", "text"]);
+    const back = applyExtras(hidden, { ...extractExtras(hidden), [key]: "+1 555 0100", [textKey]: "New tagline" });
+    expect(walk(back.blocks).some((b) => "hidden" in b && b.hidden)).toBe(false);
+    expect(extractExtras(back)[textKey]).toBe("New tagline");
+  });
+
+  it("checks emails and web addresses by the line's kind and ignores the rest", () => {
+    const doc = ai();
+    const bad = validateExtras(doc, { [field(doc, "Email").key]: "nope", [field(doc, "Website").key]: "not a site", [field(doc, "Opening hours").key]: "anything goes", [field(doc, "Address").key]: "1 Road" });
+    expect(Object.keys(bad).sort()).toEqual([field(doc, "Email").key, field(doc, "Website").key].sort());
+    expect(validateExtras(doc, extractExtras(doc))).toEqual({});
+  });
+
+  it("the fixed detail fields no longer take over these lines, so two phone lines never become the same number", () => {
+    const doc = ai();
+    const out = patchDetails(doc, { ...EMPTY_DETAILS, ...extractDetails(doc), phone: "+1 555 0100", email: "x@y.co" });
+    expect(walk(out.blocks).filter((b) => b.type === "icontext").map((b) => (b as { text: string }).text)).toContain("+987654321");
+    expect(JSON.stringify(out)).not.toContain("x@y.co");
+  });
+});
 
 describe("applyDetails", () => {
   it("fills every template with the person's details and still validates", () => {

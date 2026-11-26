@@ -85,9 +85,9 @@ describe("top bar and phone menu", () => {
     expect(screen.getByRole("link", { name: "Signature health, 120 need attention" }).textContent).toContain("99+");
   });
 
-  it("the phone bar has the five main tabs", () => {
+  it("the phone bar has the main tabs (Exporter is hidden for now)", () => {
     render(<BottomNav />);
-    expect(screen.getAllByRole("link").map((a) => a.textContent)).toEqual(["Create", "Signatures", "Exporter", "Guides"]);
+    expect(screen.getAllByRole("link").map((a) => a.textContent)).toEqual(["Create", "Signatures", "Guides"]);
   });
 });
 

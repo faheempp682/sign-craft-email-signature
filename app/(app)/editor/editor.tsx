@@ -34,6 +34,8 @@ import { DisclaimerPicker } from "@/components/disclaimer-picker";
 import { PolishDeliverBanner } from "@/app/(app)/polish/deliver-banner";
 import { canRedo, canUndo, commit, createHistory, redo, reset, undo, type History } from "@/lib/editor/history";
 import { DesignWorkspace } from "./design-workspace";
+import { LeaveDialog, useLeaveGuard } from "./leave-guard";
+import { useRouter } from "next/navigation";
 
 const MAX_BLOCKS = 30;
 const AUTOSAVE_MS = 400;
@@ -368,6 +370,11 @@ export function Editor({ initial, explicit, aiNotice = false, fromCreate = false
     replace(h.present, true, true);
   }, [replace]);
 
+  /* --- leave guard: ask before navigating away from unsaved work --- */
+  const router = useRouter();
+  const guardRef = useRef(false);
+  const { pending, setPending } = useLeaveGuard(guardRef, !localDrafts);
+
   /* --- draft: restore on mount --- */
   useEffect(() => {
     const storage = localDrafts ? getStorage() : null;
@@ -401,7 +408,11 @@ export function Editor({ initial, explicit, aiNotice = false, fromCreate = false
       if (storage && dirtyRef.current && localDrafts) saveDraft(storage, stateRef.current.doc);
     };
     window.addEventListener("pagehide", flush);
-    return () => window.removeEventListener("pagehide", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      // In-app navigation (a Link click) unmounts the editor without firing pagehide, so flush here too.
+      flush();
+    };
   }, [localDrafts]);
 
   /* --- validation + render snapshot (keeps the last valid render while the user is mid-edit) --- */
@@ -512,8 +523,12 @@ export function Editor({ initial, explicit, aiNotice = false, fromCreate = false
     setSaveNote("Draft cleared.");
   }
 
-  async function onSave() {
-    if (!current || saving) return;
+  async function onSave(): Promise<boolean> {
+    if (saving) return false;
+    if (!current) {
+      setSaveMsg("Fix the highlighted fields to save.");
+      return false;
+    }
     const sentDoc = stateRef.current.doc;
     const name = sigName.trim() || "Untitled signature";
     setSaving(true);
@@ -527,7 +542,7 @@ export function Editor({ initial, explicit, aiNotice = false, fromCreate = false
       const data = (await res.json().catch(() => null)) as { id?: string; message?: string } | null;
       if (!res.ok || !data?.id) {
         setSaveMsg(res.status === 401 ? "Your session expired. Sign in again, then save." : (data?.message ?? "Could not save. Please try again."));
-        return;
+        return false;
       }
       setSavedId(data.id);
       setSigName(name);
@@ -536,11 +551,39 @@ export function Editor({ initial, explicit, aiNotice = false, fromCreate = false
       setSaveMsg("Saved to your account.");
       // Put the id in the URL so a refresh reopens this signature instead of the generic local draft.
       window.history.replaceState(window.history.state, "", `/editor?s=${data.id}`);
+      return true;
     } catch {
       setSaveMsg("Could not reach the server. Check your connection and try again.");
+      return false;
     } finally {
       setSaving(false);
     }
+  }
+
+  function leaveTo(href: string) {
+    dirtyRef.current = false; // so the unmount flush does not re-save what was just discarded
+    guardRef.current = false;
+    setPending(null);
+    router.push(href);
+  }
+  async function leaveSave() {
+    if (pending && (await onSave())) leaveTo(pending);
+  }
+  function leaveDraft() {
+    const storage = getStorage();
+    if (!pending) return;
+    if (storage && saveDraft(storage, stateRef.current.doc)) leaveTo(pending);
+    else setSaveMsg("Could not save the draft (browser storage unavailable).");
+  }
+  function leaveDiscard() {
+    if (!pending) return;
+    const storage = getStorage();
+    if (localDrafts && storage) clearDraft(storage);
+    leaveTo(pending);
+  }
+  function leaveCancel() {
+    setPending(null);
+    setSaveMsg("");
   }
 
   function restoreDraft() {
@@ -579,8 +622,21 @@ export function Editor({ initial, explicit, aiNotice = false, fromCreate = false
   const theme = doc.theme;
   const unsaved = !savedSnap || savedSnap.doc !== docJson || savedSnap.name !== (sigName.trim() || "Untitled signature");
 
+  guardRef.current = dirty && unsaved;
+
   const notices = (
     <>
+        <LeaveDialog
+          open={pending !== null}
+          canSave={canSave}
+          canDraft={localDrafts}
+          busy={saving}
+          message={pending ? saveMsg : ""}
+          onSave={leaveSave}
+          onDraft={leaveDraft}
+          onDiscard={leaveDiscard}
+          onCancel={leaveCancel}
+        />
         {polishId && <PolishDeliverBanner requestId={polishId} doc={valid && current ? current.parsed : null} />}
         {showAiNotice && (
           <div role="status" data-testid="ai-notice" className="card flex items-start justify-between gap-3 border-accent bg-accent-soft p-4 text-sm">

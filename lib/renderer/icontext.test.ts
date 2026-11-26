@@ -42,6 +42,27 @@ describe("icon + text block", () => {
     expect(html).toContain("&lt;b&gt;x&lt;/b&gt;");
     expect(html).toContain(emailIconUrl("globe"));
   });
+  it('iconStyle "plain" draws the dark glyph with no badge circle', () => {
+    const html = renderToEmailHtml(withBlock({ type: "icontext", icon: "mail", text: "a@b.co", size: 16, iconStyle: "plain" }));
+    expect(html).toContain(emailIconUrl("mail-dark"));
+    expect(html).not.toContain("border-radius:50%");
+  });
+  it("a column can carry a thin side border, rendered as a real 1px line", () => {
+    const row = createRow("50-50");
+    row.columns[0].blocks.push({ type: "text", text: "left", variant: "body" });
+    row.columns[1].blocks.push({ type: "text", text: "right", variant: "body" });
+    row.columns[1] = { ...row.columns[1], borderLeft: { width: 1, color: "#CBD5E1" }, paddingLeft: 16 };
+    const html = renderToEmailHtml(withBlock(row));
+    expect(html).toContain("border-left:1px solid #CBD5E1");
+    expect(SignatureDocSchema.safeParse(withBlock(row)).success).toBe(true);
+  });
+  it("AI output gets the icon its text calls for (email, phone, website), whatever the model chose", () => {
+    const row = createRow("1");
+    for (const text of ["hi@acme.com", "+1 555 010 0100", "www.acme.com", "21B Street, Suite 12"]) row.columns[0].blocks.push({ type: "icontext", icon: "star", text, size: 16 });
+    const out = sanitizeDoc(withBlock(row), "x");
+    const icons = (out.blocks.at(-1) as Extract<Block, { type: "row" }>).columns[0].blocks.map((b) => (b as { icon: string }).icon);
+    expect(icons).toEqual(["mail", "phone", "globe", "star"]);
+  });
   it("AI output cannot smuggle in a custom icon image or an untyped link, even inside a row", () => {
     const row = createRow("1");
     row.columns[0].blocks.push({ type: "icontext", icon: "phone", text: "x", size: 20, src: "https://tracker.example/p.gif", href: "https://evil.example" });

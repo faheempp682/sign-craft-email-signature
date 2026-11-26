@@ -9,10 +9,10 @@ import {
 } from "@/lib/editor/doc-ops";
 import { parsePayload, type PaletteDrop } from "@/lib/editor/palette-drag";
 import { DesignCanvas, MAX_ZOOM, MIN_ZOOM, type CanvasBg } from "./design-canvas";
-import { addRow, createRow, getBlock, insertNested, liftToTop, patchNested, patchNestedStyle, removeNested, ROW_PRESETS, sinkIntoColumn, type BlockPath } from "@/lib/editor/row-ops";
+import { addRow, createRow, duplicateNested, getBlock, insertNested, liftToTop, patchNested, patchNestedStyle, removeNested, ROW_PRESETS, sinkIntoColumn, type BlockPath } from "@/lib/editor/row-ops";
 import { DesignInspector } from "./design-inspector";
 import { RowEditor } from "./row-editor";
-import { LayersPanel } from "./layers-panel";
+import { LayersPanel, type NestedLayers } from "./layers-panel";
 import { ContextMenu, type MenuItem } from "./context-menu";
 import type { Snapshot } from "./live-preview";
 
@@ -230,6 +230,22 @@ export function DesignWorkspace({
   const nestedPath: BlockPath | null = nestedSel && block?.type === "row" && primaryId === nestedSel.id ? [primary, ...nestedSel.rest] : null;
   const nestedBlock = nestedPath ? getBlock(doc.blocks, nestedPath) : undefined;
   const movable = doc.blocks.flatMap((b, i) => (i === primary || b.locked ? [] : [{ index: i, label: b.layer || BLOCK_LABEL[b.type] }]));
+  /** The layers panel's tree of what is inside each row: selecting one is the same as clicking it on the canvas. */
+  const nestedLayers: NestedLayers = {
+    selected: nestedSel,
+    onSelect: (top, rest) => {
+      const id = ids[top];
+      if (!id) return;
+      select(id, false);
+      setActiveCol({ id, rest: rest.slice(0, -1) });
+      setNestedSel({ id, rest });
+      setRightTab("design");
+    },
+    onRename: (path, name) => update((s) => patchNested(s, path, { layer: name.trim() || undefined })),
+    onHide: (path) => { const b = getBlock(doc.blocks, path); update((s) => patchNested(s, path, { hidden: b?.hidden ? undefined : true })); },
+    onDuplicate: (path) => update((s) => duplicateNested(s, path)),
+    onDelete: (path) => { update((s) => removeNested(s, path)); setNestedSel(null); },
+  };
   const onSink = (topIndex: number, dest: readonly number[]) => update((s) => sinkIntoColumn(s, topIndex, dest));
   const moveOut = () => {
     if (!nestedPath) return;
@@ -371,6 +387,7 @@ export function DesignWorkspace({
             addTarget={addTarget}
             onPaletteDrag={setPaletteDragging}
             onClearTarget={() => setActiveCol(null)}
+            nested={nestedLayers}
           />
         </section>
 

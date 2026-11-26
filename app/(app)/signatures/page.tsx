@@ -2,6 +2,7 @@ import { PRESETS } from "@/lib/presets";
 import { SignatureDocSchema } from "@/lib/schema/document";
 import { createClient, getUser } from "@/lib/supabase/server";
 import { getSignatureUsage } from "@/lib/signature-usage";
+import { DraftCard } from "./draft-card";
 import { Gallery } from "./gallery";
 import { MySignatures, type MySignature } from "./my-signatures";
 
@@ -40,6 +41,8 @@ export default async function SignaturesPage() {
           <p className="mt-3 max-w-xl text-muted">Pick a starting template from the library. Every one exports table-based, Outlook-safe HTML from a single JSON document.</p>
         </div>
       </header>
+
+      <DraftCard />
 
       {mine && <MySignatures items={mine} limit={usage?.limit} />}
 

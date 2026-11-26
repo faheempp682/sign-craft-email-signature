@@ -11,6 +11,8 @@
     "client-pack": "node scripts/client-pack.mjs",
     "test:e2e": "node --test \"e2e/**/*.e2e.mjs\"",
     "vision:smoke": "node scripts/vision-smoke.mjs",
+    "icons:build": "node scripts/build-email-icons.mjs",
+    "icons:upload": "node --env-file=.env.local scripts/upload-email-icons.mjs",
     "wrap-check": "node scripts/wrap-check.mjs"
   },
   "dependencies": {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { DesignError, DesignRequestSchema, extractJson, generateDesign, sanitizeDoc, type Complete } from "./design";
+import { DesignError, DesignRequestSchema, extractJson, generateDesign, normalizeModelDoc, sanitizeDoc, type Complete } from "./design";
 import { SignatureDocSchema } from "@/lib/schema/document";
 import { TEMPLATE_META } from "@/lib/templates";
 
@@ -118,5 +118,30 @@ describe("sanitizeDoc (the model cannot know real URLs)", () => {
     const out = await generateDesign(req, fake(reply(hostile)));
     expect(out.doc.blocks.map((b) => b.type)).toEqual(["identity", "avatar"]);
     expect(JSON.stringify(out.doc)).not.toContain("evil.example");
+  });
+});
+
+describe("normalizeModelDoc / describeDocProblems", () => {
+  it("drops nulls, expands short hex colors and clamps style paddings", () => {
+    const out = normalizeModelDoc({ blocks: [{ type: "text", text: "x", href: null, style: { color: "#abc", paddingTop: 64, fontSize: 5.4 } }] }) as { blocks: { href?: unknown; style: Record<string, unknown> }[] };
+    expect(out.blocks[0]).not.toHaveProperty("href");
+    expect(out.blocks[0].style).toEqual({ color: "#aabbcc", paddingTop: 60, fontSize: 8 });
+  });
+
+  it("names the real field instead of a bare 'Invalid input', and the retry gets it", async () => {
+    const bad = { ...base, blocks: [{ type: "row", columns: [{ blocks: [{ type: "text", text: "ok" }, { type: "icontext", icon: "fax", text: "x" }] }] }] };
+    const spy = fake(reply(bad), reply(base));
+    await generateDesign(req, spy);
+    expect(spy.mock.calls[1][1].at(-1)?.content).toMatch(/blocks\.0\.columns\.0\.blocks\.1 \(icontext\)\.icon/);
+  });
+});
+
+describe("clampSpacers", () => {
+  it("brings oversized or tiny spacer heights, even deep inside rows, into the schema range", async () => {
+    const spacer = (height: number) => ({ type: "spacer", height });
+    const nested = { type: "row", columns: [{ blocks: [{ type: "row", columns: [{ blocks: [spacer(120), spacer(1)] }] }] }] };
+    const out = await generateDesign(req, fake(reply({ ...base, blocks: [nested] })));
+    const inner = (out.doc.blocks[0] as { columns: { blocks: { columns: { blocks: { height: number }[] }[] }[] }[] }).columns[0].blocks[0].columns[0].blocks;
+    expect(inner.map((b) => b.height)).toEqual([80, 4]);
   });
 });

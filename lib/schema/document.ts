@@ -202,6 +202,8 @@ export const IconTextBlock = z.object({
   size: z.number().int().min(12).max(48).default(20),
   /** Badge colour for built-in icons. Absent = the theme's primary colour. */
   iconColor: hexColor.optional(),
+  /** "badge" (default) = white glyph on a coloured circle; "plain" = a dark glyph with no circle. */
+  iconStyle: z.enum(["badge", "plain"]).optional(),
   ...Common,
 });
 
@@ -244,9 +246,17 @@ export const MAX_TOTAL_NODES = 80;
 
 export type LeafBlock = z.infer<typeof LeafBlockSchema>;
 
+/** A thin line along one side of a column, e.g. the vertical rule between two columns. */
+export type ColumnBorder = { width: number; color: string };
+
 export type Column = {
   /** Percent of the row (5-100). Absent columns share what the sized ones leave, equally. */
   width?: number;
+  /** Lines along a side of the column (1-8 px). Use borderLeft on a column to draw a vertical rule beside it. */
+  borderLeft?: ColumnBorder;
+  borderRight?: ColumnBorder;
+  borderTop?: ColumnBorder;
+  borderBottom?: ColumnBorder;
   valign?: "top" | "middle" | "bottom";
   align?: "left" | "center" | "right";
   bg?: string;
@@ -272,8 +282,14 @@ export type RowBlock = {
 
 export type Block = LeafBlock | RowBlock;
 
+const ColumnBorderSchema = z.object({ width: z.number().int().min(1).max(8), color: hexColor });
+
 const ColumnSchema: z.ZodType<Column> = z.object({
   width: z.number().int().min(5).max(100).optional(),
+  borderLeft: ColumnBorderSchema.optional(),
+  borderRight: ColumnBorderSchema.optional(),
+  borderTop: ColumnBorderSchema.optional(),
+  borderBottom: ColumnBorderSchema.optional(),
   valign: z.enum(["top", "middle", "bottom"]).optional(),
   align: z.enum(["left", "center", "right"]).optional(),
   bg: hexColor.optional(),

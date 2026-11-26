@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { SignatureDocSchema, type SignatureDoc } from "@/lib/schema/document";
-import { SCHEMA_PROMPT, extractJson, formatIssues, sanitizeDoc, type Completion } from "./design";
+import { SCHEMA_PROMPT, docProblem, extractJson, normalizeModelDoc, sanitizeDoc, type Completion } from "./design";
 import type { PreparedImage } from "./vision";
 
 /* ---------- request ---------- */
@@ -52,7 +52,7 @@ export const CHAT_SYSTEM_PROMPT = `You are SignCraft's email-signature design as
 ${SCHEMA_PROMPT}Rules:
 1. Set "doc" to a full SignatureDoc whenever you can design or change something. Prefer designing straight away, using placeholders for anything missing. Set "doc" to null only when the user's message is a question or you truly cannot start; then ask ONE short question in "reply".
 2. When <current_design> is given, the user wants it changed: apply exactly what they ask and return the complete updated doc. Keep every other part (text, colors, fonts, blocks) as it is.
-3. Attachments: a picture of a signature or a signature design is rebuilt as closely as you can (layout, order, colors, fonts, visible text copied exactly). A logo, photo or brand picture only guides colors and mood; you cannot embed it, so use a placeholder image. A document (brand guide, CV, business card text) is a source of facts: name, title, company, phone, email, website, address and social links. Use only facts that are really in it.
+3. Attachments: a picture of a signature or a signature design is rebuilt as closely as you can (layout, order, colors, fonts, visible text copied exactly). Do NOT fit it to the nearest template. Study its structure first: how many columns, what sits in each (photo, name block, contact, icons), left/right/center alignment, where rules and dividers run (vertical between columns, horizontal full or partial width), relative column widths, text sizes and weights, and the spacing between parts. Then use template_id "classic" and rebuild that arrangement with "row" blocks and columns (widths in percent, valign, align), "divider", "spacer" and per-block "style". Use modern-split only when the picture really is a photo beside stacked text with nothing else. When the user says "exactly like this" or similar, fidelity to the picture's layout beats tidiness and the block-count guideline (use up to about 20 blocks if needed). Where the picture has a script signature, barcode or other element you cannot reproduce, leave a close stand-in (a text or placeholder block) in the same position and say so in "reply". A logo, photo or brand picture only guides colors and mood; you cannot embed it, so use a placeholder image. A document (brand guide, CV, business card text) is a source of facts: name, title, company, phone, email, website, address and social links. Use only facts that are really in it.
 4. Use only facts the user gave. For anything missing use obvious placeholders: name "Your Name", title "Your Title", company "Your Company", email "you@example.com", phone "+1 555 000 0000", website "yourcompany.com". Never invent real-looking people, companies, URLs or social handles.
 5. Images: avatar src must be https://placehold.co/160x160.png and banner src https://placehold.co/WIDTHxHEIGHT.png (matching the block's width/height). No other image hosts. Add an avatar only if the user wants a photo or logo; add a banner only if they want a promo or banner.
 6. Social links: include only networks the user mentioned or that appear in an attachment, using the https URL given when there is one, otherwise the network's home page.
@@ -77,6 +77,7 @@ export function buildChatMessages(payload: ChatPayload, doc: SignatureDoc | unde
   const parts: string[] = [];
   if (doc) parts.push(`<current_design>\n${JSON.stringify(doc)}\n</current_design>`);
   parts.push(`<message>\n${payload.text || "Please use the attached files."}\n</message>`);
+  if (files.some((f) => f.kind === "image")) parts.push("An image is attached. If it shows a signature, reproduce its exact layout: columns, positions, dividers, alignment, sizes and spacing.");
   blocks.push({ type: "text", text: parts.join("\n") });
   messages.push({ role: "user", content: blocks });
   return messages;
@@ -112,9 +113,10 @@ export async function generateChat(payload: ChatPayload, files: ChatAttachment[]
     try {
       const parsed = z.object({ reply: z.string().trim().min(1).max(600), doc: z.unknown() }).parse(extractJson(text));
       if (parsed.doc === null || parsed.doc === undefined) return { reply: parsed.reply, doc: null };
-      const result = SignatureDocSchema.safeParse(parsed.doc);
+      const fixed = normalizeModelDoc(parsed.doc);
+      const result = SignatureDocSchema.safeParse(fixed);
       if (result.success) return { reply: parsed.reply, doc: SignatureDocSchema.parse(sanitizeDoc(result.data, facts)) };
-      problem = formatIssues(result.error);
+      problem = docProblem(fixed, result.error);
     } catch (e) {
       problem = e instanceof Error ? e.message : "The reply was not valid JSON.";
     }

@@ -19,19 +19,22 @@ export type MenuInput = {
   attention?: number;
 };
 
-/** Everyone gets these. Mirrors the five phone tabs. */
+/**
+ * Temporary: while true the sidebar shows only Create, plus "My signature" and "Roles and invites" under Team.
+ * The Grow and Admin groups, the other Team links and the Exporter are hidden, not removed. Set to false to bring them all back.
+ */
+export const HIDE_UNFINISHED_MENUS = true;
+/** Pages whose menu link is hidden while HIDE_UNFINISHED_MENUS is on (the page itself still works). */
+const HIDDEN_WHILE_HIDING = new Set(["/preview"]);
+
+/** Everyone gets these. Mirrors the phone tabs. */
 export const MAIN_LINKS: NavLink[] = [
   { href: "/create", label: "Create", icon: "create" },
   { href: "/signatures", label: "Signatures", icon: "signatures" },
   { href: "/preview", label: "Exporter", icon: "exporter" },
   { href: "/guides", label: "Guides", icon: "guides" },
-];
+].filter((l) => !HIDE_UNFINISHED_MENUS || !HIDDEN_WHILE_HIDING.has(l.href)) as NavLink[];
 
-/**
- * Temporary: while true the sidebar shows only Create, plus "My signature" and "Roles and invites" under Team.
- * The Grow and Admin groups and the other Team links are hidden, not removed. Set to false to bring them all back.
- */
-export const HIDE_UNFINISHED_MENUS = true;
 const ALWAYS_SHOWN_WHILE_HIDING = new Set(["/team/mine", "/admin/users"]);
 
 /**

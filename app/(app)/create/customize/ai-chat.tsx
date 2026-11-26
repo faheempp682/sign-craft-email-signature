@@ -15,6 +15,9 @@ import type { SignatureDoc } from "@/lib/schema/document";
 import type { StoredMessage } from "@/lib/ai/history";
 import { renderToEmailHtml } from "@/lib/renderer/email-html";
 import { getStorage, saveDraft } from "@/lib/editor/draft";
+import { clearDetails, saveCustom } from "@/lib/create/session";
+import { ensureIdentity } from "@/lib/create/fill";
+import { getPreset } from "@/lib/presets";
 import { cn } from "@/lib/utils";
 
 type UiMsg = StoredMessage & { error?: boolean };
@@ -220,7 +223,15 @@ export function AiChat() {
     }
   }
 
-  function openInEditor(doc: SignatureDoc) {
+  /** The simple form is where a design from the chat is finished: its fields (photo, name, contact lines, socials) follow the design. */
+  function openInEditor(original: SignatureDoc) {
+    const doc = ensureIdentity(original); // older chat designs may have the name as plain text, which the form cannot fill
+    if (getPreset(doc.template_id)) {
+      clearDetails(); // a new signature starts clean: nothing left over from another one in this tab
+      saveCustom(doc);
+      router.push(`/create?t=${encodeURIComponent(doc.template_id)}`);
+      return;
+    }
     const storage = getStorage();
     if (!storage || !saveDraft(storage, doc)) return setNotice("Your browser is blocking local storage, so the design could not be opened in the editor. Allow site data and try again.");
     router.push("/editor?from=ai");

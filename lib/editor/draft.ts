@@ -1,4 +1,4 @@
-import { TEMPLATE_IDS, ThemeSchema, type SignatureDoc } from "@/lib/schema/document";
+import { MAX_COLUMNS, MAX_COLUMN_BLOCKS, MAX_ROW_DEPTH, TEMPLATE_IDS, ThemeSchema, type SignatureDoc } from "@/lib/schema/document";
 import { BLOCK_TYPES } from "./blocks";
 
 /** Bump the suffix if the stored shape ever changes incompatibly. */
@@ -27,7 +27,22 @@ export function isDraftDoc(x: unknown): x is SignatureDoc {
   if (typeof d.template_id !== "string" || !(TEMPLATE_IDS as readonly string[]).includes(d.template_id)) return false;
   if (!ThemeSchema.safeParse(d.theme).success) return false;
   if (!Array.isArray(d.blocks) || d.blocks.length > 30) return false;
-  return d.blocks.every((b) => !!b && typeof b === "object" && (BLOCK_TYPES as readonly string[]).includes((b as { type?: string }).type ?? ""));
+  return d.blocks.every((b) => isDraftBlock(b, 1));
+}
+
+/** One block by structure. Rows are checked down through their columns (up to the schema's nesting limit). */
+function isDraftBlock(b: unknown, depth: number): boolean {
+  if (!b || typeof b !== "object") return false;
+  const type = (b as { type?: string }).type ?? "";
+  if (type === "row") {
+    const columns = (b as { columns?: unknown }).columns;
+    if (depth > MAX_ROW_DEPTH || !Array.isArray(columns) || columns.length === 0 || columns.length > MAX_COLUMNS) return false;
+    return columns.every((c) => {
+      const blocks = c && typeof c === "object" ? (c as { blocks?: unknown }).blocks : undefined;
+      return Array.isArray(blocks) && blocks.length <= MAX_COLUMN_BLOCKS && blocks.every((x) => isDraftBlock(x, depth + 1));
+    });
+  }
+  return (BLOCK_TYPES as readonly string[]).includes(type);
 }
 
 export function saveDraft(storage: StorageLike, doc: SignatureDoc, now = Date.now()): boolean {

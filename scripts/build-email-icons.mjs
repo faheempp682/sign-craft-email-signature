@@ -1,11 +1,14 @@
-// Builds the built-in icons for the "Icon + text" block: white 96px glyph PNGs on transparent, drawn as stroked paths.
-// Email clients block inline SVG and data: images, so these ship as hosted PNGs; the signature puts each one on a
-// theme-coloured badge cell. Usage: node scripts/build-email-icons.mjs [outDir]   (default public/email-icons/v1)
-// Serve outDir from your site (NEXT_PUBLIC_SITE_URL) or upload it to a CDN and set NEXT_PUBLIC_EMAIL_ICON_BASE.
+// Builds the built-in icons for the "Icon + text" block, drawn as stroked paths (96px PNGs on transparent):
+//   <name>.png       white glyph; the signature puts it on a theme-coloured badge cell
+//   <name>-dark.png  near-black glyph with no badge; used for the plain look (iconStyle: "plain")
+// Email clients block inline SVG and data: images, so these ship as hosted PNGs.
+// Usage: node scripts/build-email-icons.mjs [outDir]   (default public/email-icons/v1)
+// Then `npm run icons:upload` puts them on Bunny CDN once, so every template reuses the same files.
 import { mkdirSync, writeFileSync } from "node:fs";
 import sharp from "sharp";
 
 const out = process.argv[2] ?? "public/email-icons/v1";
+const DARK = "#1F2937";
 const ICONS = {
   phone: `<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>`,
   mail: `<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>`,
@@ -21,8 +24,13 @@ const ICONS = {
   chat: `<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>`,
 };
 mkdirSync(out, { recursive: true });
+const png = (body, stroke) =>
+  sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="-1 -1 26 26" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`), { density: 300 })
+    .resize(96, 96)
+    .png({ compressionLevel: 9 })
+    .toBuffer();
 for (const [name, body] of Object.entries(ICONS)) {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="-1 -1 26 26" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
-  writeFileSync(`${out}/${name}.png`, await sharp(Buffer.from(svg), { density: 300 }).resize(96, 96).png({ compressionLevel: 9 }).toBuffer());
+  writeFileSync(`${out}/${name}.png`, await png(body, "#fff"));
+  writeFileSync(`${out}/${name}-dark.png`, await png(body, DARK));
 }
-console.log(`wrote ${Object.keys(ICONS).length} icons to ${out}`);
+console.log(`wrote ${Object.keys(ICONS).length * 2} icons to ${out}`);

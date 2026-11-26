@@ -35,6 +35,9 @@ function renderColumn(c: Column, width: number, renderChild: (b: Block) => strin
   const css: string[] = [`width:${width}%`];
   if (c.align) css.push(`text-align:${c.align}`);
   if (c.bg) css.push(`background-color:${c.bg}`);
+  for (const [side, edge] of [["top", c.borderTop], ["right", c.borderRight], ["bottom", c.borderBottom], ["left", c.borderLeft]] as const) {
+    if (edge) css.push(`border-${side}:${edge.width}px solid ${edge.color}`);
+  }
   const pad = [c.paddingTop, c.paddingRight, c.paddingBottom, c.paddingLeft];
   if (pad.some((p) => p)) css.push(`padding:${pad.map((p) => `${p ?? 0}px`).join(" ")}`);
   const attrs = [stack ? STACK_MARK : "", `width="${width}%"`, `valign="${c.valign ?? "top"}"`, c.align ? `align="${c.align}"` : "", c.bg ? `bgcolor="${c.bg}"` : ""].filter(Boolean).join(" ");

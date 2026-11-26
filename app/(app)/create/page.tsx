@@ -1,4 +1,8 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
+import { z } from "zod";
+import { SignatureDocSchema, type SignatureDoc } from "@/lib/schema/document";
+import { createClient, getUser } from "@/lib/supabase/server";
 import { getSignatureUsage } from "@/lib/signature-usage";
 import { getPreset } from "@/lib/presets";
 import { getBunnyConfig } from "@/lib/storage/bunny";
@@ -8,8 +12,42 @@ export const metadata = { title: "Choose a template · SignCraft" };
 export const dynamic = "force-dynamic";
 
 /** First screen for a new customer: pick a template. The AI route is a button, not the starting point. */
-export default async function CreatePage({ searchParams }: { searchParams: Promise<{ t?: string }> }) {
-  const { t } = await searchParams;
+async function loadSaved(id: string): Promise<{ id: string; name: string; doc: SignatureDoc } | null> {
+  if (!z.string().uuid().safeParse(id).success) return null;
+  const supabase = await createClient();
+  const user = supabase ? await getUser() : null;
+  if (!supabase || !user) return null;
+  // Own rows only: Save in the studio updates as the owner.
+  const { data } = await supabase.from("signatures").select("id, name, doc_json").eq("id", id).eq("owner_id", user.id).maybeSingle();
+  const doc = data ? SignatureDocSchema.safeParse(data.doc_json) : null;
+  return data && doc?.success ? { id: data.id, name: data.name, doc: doc.data } : null;
+}
+
+export default async function CreatePage({ searchParams }: { searchParams: Promise<{ t?: string; s?: string }> }) {
+  const { t, s } = await searchParams;
+  // Editing a saved signature: the same simple form, filled in. Opening your own signature is never blocked by the limit.
+  if (s) {
+    const saved = await loadSaved(s);
+    if (!saved) notFound();
+    return (
+      <CreateStudio
+        initialId={saved.doc.template_id}
+        startDoc={saved.doc}
+        editId={saved.id}
+        editName={saved.name}
+        canUpload={!!getBunnyConfig()}
+        header={
+          <header className="mb-8 flex flex-wrap items-start justify-between gap-4">
+            <div className="max-w-xl">
+              <h1 className="text-3xl font-semibold tracking-tight">Edit signature.</h1>
+              <p className="mt-3 text-muted">Change your details on the right and the signature updates. Press Save to keep the changes.</p>
+            </div>
+            <Link href="/signatures" className="btn shrink-0">Back to my signatures</Link>
+          </header>
+        }
+      />
+    );
+  }
   const usage = await getSignatureUsage();
   if (usage?.full) {
     // Everything after this screen ends in a save that would be refused, so say so before they spend time on it.

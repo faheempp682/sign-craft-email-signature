@@ -78,8 +78,7 @@ export function MySignatures({ items, limit }: { items: MySignature[]; limit?: n
                   <p className="mt-1 text-sm text-muted">Updated <UpdatedDate iso={s.updatedAt} /></p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Link href={`/editor?s=${s.id}`} className="btn btn-primary">Edit</Link>
-                  {SHOW_REQUEST_POLISH && <RequestPolish signatureId={s.id} origin="manual" />}
+                  <Link href={`/create?s=${s.id}`} className="btn btn-primary">Edit</Link>                  {SHOW_REQUEST_POLISH && <RequestPolish signatureId={s.id} origin="manual" />}
                   <button className="btn" disabled={busy === s.id} onClick={() => remove(s)} aria-label={`Delete ${s.name}`}>
                     {busy === s.id ? "Deleting…" : "Delete"}
                   </button>

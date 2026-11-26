@@ -232,6 +232,8 @@ function renderIconText(b: Extract<Block, { type: "icontext" }>, { theme }: Ctx)
   const pad = Math.floor((size - glyph) / 2);
   const icon = b.src
     ? `<img src="${esc(b.src)}" width="${size}" height="${size}" alt="" style="display:block;border:0;width:${size}px;height:${size}px;" />`
+    : b.iconStyle === "plain"
+    ? `<img src="${esc(emailIconUrl(`${b.icon}-dark`))}" width="${size}" height="${size}" alt="" style="display:block;border:0;width:${size}px;height:${size}px;" />`
     : `<table ${TABLE_ATTRS}><tr><td align="center" valign="middle" width="${size}" height="${size}" bgcolor="${b.iconColor ?? theme.primary}" style="width:${size}px;height:${size}px;background-color:${b.iconColor ?? theme.primary};border-radius:50%;"><img src="${esc(emailIconUrl(b.icon))}" width="${glyph}" height="${glyph}" alt="" style="display:block;border:0;width:${glyph}px;height:${glyph}px;margin:${pad}px;" /></td></tr></table>`;
   const body = b.text.split(/\r?\n/).map(esc).join("<br />");
   const href = b.href ? safeLink(b.href) : null;

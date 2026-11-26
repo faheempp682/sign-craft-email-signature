@@ -42,6 +42,17 @@ describe("draft storage", () => {
     expect(isDraftDoc({ ...doc, blocks: Array.from({ length: 31 }, () => ({ type: "divider" })) })).toBe(false);
   });
 
+  it("restores a draft whose blocks sit inside rows and columns (AI layouts, row editor), but not a bad row", () => {
+    const s = memoryStorage();
+    const inner = { type: "row", columns: [{ blocks: [{ type: "icontext", icon: "mail", text: "a@b.co", size: 16 }] }] };
+    const withRows = { ...doc, blocks: [{ type: "row", columns: [{ blocks: [{ type: "text", text: "x", variant: "body" }] }, { blocks: [inner] }] }] };
+    saveDraft(s, withRows as never);
+    expect(loadDraft(s)?.doc).toEqual(withRows);
+    expect(isDraftDoc({ ...doc, blocks: [{ type: "row", columns: [{ blocks: [{ type: "script" }] }] }] })).toBe(false);
+    expect(isDraftDoc({ ...doc, blocks: [{ type: "row", columns: [] }] })).toBe(false);
+    expect(isDraftDoc({ ...doc, blocks: [{ type: "row" }] })).toBe(false);
+  });
+
   it("survives storage that throws (private mode / quota)", () => {
     const broken: StorageLike = {
       getItem: () => { throw new Error("blocked"); },

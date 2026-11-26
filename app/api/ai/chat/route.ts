@@ -63,14 +63,15 @@ async function handle(req: Request, gate: AiGate): Promise<Response> {
 
   try {
     const files = await Promise.all(uploads.map(prepare));
+    const hasImage = files.some((f) => f.kind === "image");
     const client = new Anthropic(); // reads the key from the environment; never sent to the browser
     const complete: CompleteChat = async (system, messages) => {
       const res = await client.messages.create({
         model: MODEL,
-        max_tokens: 4000,
+        max_tokens: 8000, // row/column rebuilds of a reference image are long JSON
         system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
         messages: messages as Anthropic.MessageParam[],
-        output_config: { effort: "low" },
+        output_config: { effort: hasImage ? "medium" : "low" }, // reading a layout from a picture needs more thought than a text edit
       });
       gate.record((res.usage?.input_tokens ?? 0) + (res.usage?.cache_creation_input_tokens ?? 0) + (res.usage?.cache_read_input_tokens ?? 0), res.usage?.output_tokens ?? 0);
       const text = res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
