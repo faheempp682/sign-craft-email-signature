@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("next/navigation", () => ({ usePathname: () => "/team/health" }));
 vi.mock("@/app/login/actions", () => ({ signOut: async () => {} }));
 
-import { buildMenu } from "@/lib/nav/menu";
+import { buildFullMenu as buildMenu } from "@/lib/nav/menu";
 import { BottomNav, Footer, Sidebar, Topbar, navLabel } from "./nav";
 
 const adminMenu = (attention = 0) => buildMenu({ role: "admin", platform: true, flags: { team_deploy: true, health_monitor: true }, attention });
@@ -87,7 +87,7 @@ describe("top bar and phone menu", () => {
 
   it("the phone bar has the five main tabs", () => {
     render(<BottomNav />);
-    expect(screen.getAllByRole("link").map((a) => a.textContent)).toEqual(["Create", "Signatures", "Editor", "Exporter", "Guides"]);
+    expect(screen.getAllByRole("link").map((a) => a.textContent)).toEqual(["Create", "Signatures", "Exporter", "Guides"]);
   });
 });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMenu, currentLink, isActive } from "./menu";
+import { buildFullMenu as buildMenu, buildMenu as buildVisibleMenu, currentLink, isActive } from "./menu";
 
 const labels = (groups: ReturnType<typeof buildMenu>, group: string) => groups.find((g) => g.label === group)?.links.map((l) => l.label);
 const allOn = { team_deploy: true, directory_sync: true, crm_sync: false, health_monitor: true, agency_mode: true, digital_card: true } as const;
@@ -58,5 +58,13 @@ describe("active link", () => {
     const m = buildMenu({ role: "admin", platform: true, flags: allOn });
     expect(currentLink(m, "/admin/limits")).toMatchObject({ group: "Admin", link: { label: "AI limits" } });
     expect(currentLink(m, "/nowhere")).toBeNull();
+  });
+});
+
+describe("temporarily hidden menus", () => {
+  it("shows only Create, plus My signature and Roles and invites under Team", () => {
+    const groups = buildVisibleMenu({ role: "admin", platform: true, flags: { team_deploy: true, directory_sync: true, health_monitor: true, digital_card: true, agency_mode: true } });
+    expect(groups.map((g) => g.label)).toEqual(["Create", "Team"]);
+    expect(groups[1].links.map((l) => l.href)).toEqual(["/admin/users", "/team/mine"]);
   });
 });

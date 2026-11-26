@@ -52,6 +52,8 @@ const AvatarBase = z.object({
   size: z.number().int().min(32).max(200).default(80),
   /** Only for tall photo layouts (e.g. Talent card). Absent = square. The cropper follows size : height. */
   height: z.number().int().min(32).max(400).optional(),
+  /** How a photo whose shape differs from the frame sits in it: "cover" fills the frame (cropping the edges), "contain" shows the whole image. Absent = the image is drawn as-is. */
+  fit: z.enum(["cover", "contain"]).optional(),
 });
 
 const IdentityBase = z.object({

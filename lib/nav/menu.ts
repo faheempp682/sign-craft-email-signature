@@ -23,16 +23,31 @@ export type MenuInput = {
 export const MAIN_LINKS: NavLink[] = [
   { href: "/create", label: "Create", icon: "create" },
   { href: "/signatures", label: "Signatures", icon: "signatures" },
-  { href: "/editor", label: "Editor", icon: "editor" },
   { href: "/preview", label: "Exporter", icon: "exporter" },
   { href: "/guides", label: "Guides", icon: "guides" },
 ];
 
 /**
+ * Temporary: while true the sidebar shows only Create, plus "My signature" and "Roles and invites" under Team.
+ * The Grow and Admin groups and the other Team links are hidden, not removed. Set to false to bring them all back.
+ */
+export const HIDE_UNFINISHED_MENUS = true;
+const ALWAYS_SHOWN_WHILE_HIDING = new Set(["/team/mine", "/admin/users"]);
+
+/**
  * The one sidebar menu, worked out on the server from the role and the feature flags. Navigation only: every page and
  * API still checks the role and the feature itself.
  */
-export function buildMenu({ role, platform, flags, attention = 0 }: MenuInput): NavGroup[] {
+export function buildMenu(input: MenuInput): NavGroup[] {
+  const groups = buildFullMenu(input);
+  if (!HIDE_UNFINISHED_MENUS) return groups;
+  return groups
+    .filter((g) => g.label === "Create" || g.label === "Team")
+    .map((g) => (g.label === "Team" ? { ...g, links: g.links.filter((l) => ALWAYS_SHOWN_WHILE_HIDING.has(l.href)) } : g))
+    .filter((g) => g.links.length);
+}
+
+export function buildFullMenu({ role, platform, flags, attention = 0 }: MenuInput): NavGroup[] {
   const on = (f: Feature) => flags[f] === true;
   const admin = role === "admin";
   const groups: NavGroup[] = [{ label: "Create", links: MAIN_LINKS }];

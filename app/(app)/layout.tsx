@@ -10,26 +10,30 @@ const NAV_FEATURES: Feature[] = ["digital_card", "designer_polish", "team_deploy
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getUser();
   const avatarUrl = typeof user?.user_metadata?.avatar_url === "string" && user.user_metadata.avatar_url.startsWith("https://") ? user.user_metadata.avatar_url : null;
-  const role = user ? await currentRole() : null;
-  const isAdmin = role === "admin";
   const supabase = user ? await createClient() : null;
 
   // Links appear only for what this person can actually use (the pages and APIs enforce it again).
+  // The role and every feature flag are independent round trips: ask for them together, not one after another.
   const flags: MenuInput["flags"] = {};
   let attention = 0;
   let platform = false;
+  let role: Awaited<ReturnType<typeof currentRole>> = null;
   if (supabase) {
-    const values = await Promise.all(NAV_FEATURES.map((f) => featureEnabled(supabase, f)));
+    const [r, values] = await Promise.all([currentRole(), Promise.all(NAV_FEATURES.map((f) => featureEnabled(supabase, f)))]);
+    role = r;
     NAV_FEATURES.forEach((f, i) => (flags[f] = values[i]));
-    if (isAdmin) {
-      platform = await isPlatformAdmin();
-      if (flags.team_deploy === true && flags.health_monitor === true) {
+    if (role === "admin") {
+      const wantsFindings = flags.team_deploy === true && flags.health_monitor === true;
+      const [isPlatform, findings] = await Promise.all([
+        isPlatformAdmin(),
         // Open signature-health findings (someone edited or removed a deployed signature). Admin-only rows under row-level security.
-        const { count } = await supabase.from("health_findings").select("id", { count: "exact", head: true }).eq("status", "open");
-        attention = count ?? 0;
-      }
+        wantsFindings ? supabase.from("health_findings").select("id", { count: "exact", head: true }).eq("status", "open") : null,
+      ]);
+      platform = isPlatform;
+      attention = findings?.count ?? 0;
     }
   }
+  const isAdmin = role === "admin";
   const groups = buildMenu({ role, platform, flags, attention });
 
   return (

@@ -12,7 +12,7 @@ const TABLE = `role="presentation" cellpadding="0" cellspacing="0" border="0"`;
 export const STACK_BREAKPOINT = 480;
 
 /** Emitted once, ahead of the signature, only when the document has a stacking row. */
-export const STACK_CSS = `<style type="text/css">@media only screen and (max-width:${STACK_BREAKPOINT}px){.sc-col{display:block!important;width:100%!important;max-width:100%!important;padding-left:0!important;padding-right:0!important}.sc-gap{display:none!important}.sc-row{width:100%!important}}</style>`;
+export const STACK_CSS = `<style type="text/css">@media only screen and (max-width:${STACK_BREAKPOINT}px){.sc-col{display:block!important;width:100%!important;max-width:100%!important;padding-left:0!important;padding-right:0!important}.sc-col.sc-pad{padding-left:24px!important;padding-right:24px!important}.sc-gap{display:none!important}.sc-row{width:100%!important}}</style>`;
 
 /** Marks a column that stacks on mobile. The exporter adds STACK_CSS only when its output contains this. */
 export const STACK_MARK = `class="sc-col"`;

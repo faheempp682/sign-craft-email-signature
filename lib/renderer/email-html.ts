@@ -81,5 +81,5 @@ export function renderToEmailHtml(doc: SignatureDoc, options?: RenderOptions): s
     }
   });
   // Only output that contains a stacking column gets the media query, so every existing signature exports byte-for-byte as before.
-  return html.includes(STACK_MARK) ? STACK_CSS + html : html;
+  return html.includes(STACK_MARK) || html.includes(`${STACK_MARK.slice(0, -1)} `) ? STACK_CSS + html : html;
 }

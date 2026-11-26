@@ -204,7 +204,9 @@ export function LivePreview({
     const ro = new ResizeObserver(() => fit());
     ro.observe(f);
     return () => ro.disconnect();
-  });
+    // `fit` only touches refs, so one observer for the life of the iframe is enough (it used to be rebuilt on every render).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Re-inject whenever the document, background or selection changes.
   useEffect(() => {

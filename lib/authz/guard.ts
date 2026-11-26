@@ -1,4 +1,5 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
+import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient, getUser } from "@/lib/supabase/server";
 import { isBootstrapAdmin, promoteToAdmin } from "./bootstrap";
@@ -59,7 +60,7 @@ async function readRole(supabase: SupabaseClient): Promise<Role> {
 }
 
 /** The signed-in user's role for server-rendered pages. null when signed out, Supabase is off, or access control is unavailable. */
-export async function currentRole(): Promise<Role | null> {
+export const currentRole = cache(async (): Promise<Role | null> => {
   const g = await requireUser();
   if (!g.ok) return null;
   try {
@@ -68,7 +69,7 @@ export async function currentRole(): Promise<Role | null> {
     if (e instanceof AuthzUnavailable) return null;
     throw e;
   }
-}
+});
 
 /** Signed in AND at least `min`. 403 otherwise. */
 export async function requireRole(min: Role, messages: Messages = {}): Promise<Guard<UserCtx & { role: Role }>> {
@@ -103,10 +104,10 @@ export async function requirePlatformAdmin(messages: Messages = {}): Promise<Gua
 }
 
 /** For server-rendered pages: true only for a platform admin. */
-export async function isPlatformAdmin(): Promise<boolean> {
+export const isPlatformAdmin = cache(async (): Promise<boolean> => {
   const g = await requirePlatformAdmin();
   return g.ok;
-}
+});
 
 /** Signed in AND the feature is enabled for them (role default, then organization and user overrides). */
 export async function requireFeature(feature: Feature, messages: Messages = {}): Promise<Guard<UserCtx>> {
@@ -119,11 +120,11 @@ export async function requireFeature(feature: Feature, messages: Messages = {}):
 }
 
 /** null means the check itself failed (treated as "unavailable", never as "allowed"). */
-export async function featureEnabled(supabase: SupabaseClient, feature: Feature): Promise<boolean | null> {
+export const featureEnabled = cache(async (supabase: SupabaseClient, feature: Feature): Promise<boolean | null> => {
   const { data, error } = await supabase.rpc("feature_enabled", { p_feature: feature });
   if (error || typeof data !== "boolean") {
     console.error("[authz] could not check feature:", feature, error?.message ?? `unexpected value ${String(data)}`);
     return null;
   }
   return data;
-}
+});

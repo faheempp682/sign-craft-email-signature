@@ -6,10 +6,42 @@ import { useEffect, useMemo, useState } from "react";
 import { SignaturePreview } from "@/components/signature-preview";
 import { renderToEmailHtml } from "@/lib/renderer/email-html";
 import { getStorage, saveDraft } from "@/lib/editor/draft";
-import type { SignatureDoc } from "@/lib/schema/document";
+import type { Block, SignatureDoc } from "@/lib/schema/document";
+import { applyImages, type SlotImage } from "@/lib/create/fill";
+import { applyBrand, type Brand } from "@/lib/create/brand";
 import { CATEGORIES, COLLECTIONS, DEFAULT_COLLECTION, PRESETS, type Category, type Collection } from "@/lib/presets";
 
 const PAGE = 24;
+
+const DUMMY_PHOTOS = [
+  "women/44", "men/32", "women/65", "men/75", "women/68", "men/46", "women/12", "men/22", "women/90", "men/85",
+].map((p) => `https://randomuser.me/api/portraits/${p}.jpg`);
+
+const BANNERS = [
+  ["1E3A8A", "Spring+Sale+%C2%B7+20%25+off"],
+  ["0F766E", "Book+a+free+consultation"],
+  ["9D2B4A", "New+collection+out+now"],
+  ["C2410C", "Open+house+this+Saturday"],
+  ["334155", "Join+our+webinar"],
+];
+
+/**
+ * Gallery preview only: every grey placehold.co box becomes a realistic dummy (a portrait, or a coloured promo banner) so
+ * each card looks finished. Photos or logos the person uploaded are NOT used here; they appear only on the template they pick.
+ */
+function previewDoc(doc: SignatureDoc, seed: number, mine?: { images: Record<string, SlotImage>; brand: Brand | null }): SignatureDoc {
+  if (mine) doc = applyImages(applyBrand(doc, Object.keys(mine.images).some((k) => k.startsWith("avatar")) ? mine.brand : null), mine.images);
+  let n = 0;
+  const go = (blocks: Block[]): Block[] =>
+    blocks.map((b) => {
+      if (b.type === "row") return { ...b, columns: b.columns.map((c) => ({ ...c, blocks: go(c.blocks) })) };
+      if ((b.type !== "avatar" && b.type !== "banner") || !b.src.startsWith("https://placehold.co/")) return b;
+      if (b.type === "avatar") return { ...b, src: DUMMY_PHOTOS[(seed + n++) % DUMMY_PHOTOS.length], fit: "cover" };
+      const [bg, text] = BANNERS[(seed + n++) % BANNERS.length];
+      return { ...b, src: `https://placehold.co/${b.width * 2}x${b.height * 2}/${bg}/FFFFFF.png?text=${text}` };
+    });
+  return { ...doc, blocks: go(doc.blocks) };
+}
 
 type Mine = { id: string; name: string; doc: SignatureDoc; created_at: string };
 const MINE = "mine" as const;
@@ -18,7 +50,7 @@ const MINE = "mine" as const;
  * `pickPath` is where "Use template" goes, with ?t=<id> added. The default opens the editor; the create flow sends people to
  * its questions step instead.
  */
-export function Gallery({ pickPath = "/editor", pickLabel = "Use template" }: { pickPath?: string; pickLabel?: string }) {
+export function Gallery({ pickPath = "/editor", pickLabel = "Use template", onPick, mineId, mineImages, mineBrand }: { pickPath?: string; pickLabel?: string; onPick?: (id: string) => void; /** The template the person last worked on, with their uploaded images and brand colours: only this card shows them. */ mineId?: string | null; mineImages?: Record<string, SlotImage>; mineBrand?: Brand | null }) {
   const router = useRouter();
   const [col, setCol] = useState<Collection | typeof MINE>(DEFAULT_COLLECTION);
   /** null: not signed in or not available, so the tab is hidden. */
@@ -41,11 +73,23 @@ export function Gallery({ pickPath = "/editor", pickLabel = "Use template" }: { 
     };
   }, []);
 
+  // Jump to the tab the last-used template lives in, with no filters hiding it.
+  useEffect(() => {
+    const p = mineId ? PRESETS.find((x) => x.id === mineId) : undefined;
+    if (!p) return;
+    setCol(p.collection);
+    setCat("All");
+    setQ("");
+    setShown(PAGE);
+  }, [mineId]);
+
   const list = useMemo(() => {
     if (col === MINE) return [];
     const needle = q.trim().toLowerCase();
-    return PRESETS.filter((p) => p.collection === col && (cat === "All" || p.category === cat) && (!needle || p.name.toLowerCase().includes(needle)));
-  }, [col, cat, q]);
+    const found = PRESETS.filter((p) => p.collection === col && (cat === "All" || p.category === cat) && (!needle || p.name.toLowerCase().includes(needle)));
+    // The template they were just working on comes first, so they can find it again.
+    return mineId ? [...found.filter((p) => p.id === mineId), ...found.filter((p) => p.id !== mineId)] : found;
+  }, [col, cat, q, mineId]);
   const counts = useMemo(() => Object.fromEntries(COLLECTIONS.map((c) => [c, PRESETS.filter((p) => p.collection === c).length])) as Record<Collection, number>, []);
 
   const myList = useMemo(() => {
@@ -110,7 +154,7 @@ export function Gallery({ pickPath = "/editor", pickLabel = "Use template" }: { 
 
       {col === MINE && (
         <>
-          {mineError && <p role="alert" className="mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">{mineError}</p>}
+          {mineError && <p role="alert" className="mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">{mineError}</p>}
           <ul className="grid gap-5 md:grid-cols-2">
             {myList.map((t) => (
               <li key={t.id} className="card overflow-hidden">
@@ -138,18 +182,22 @@ export function Gallery({ pickPath = "/editor", pickLabel = "Use template" }: { 
       )}
 
       {col !== MINE && <ul className="grid gap-5 md:grid-cols-2">
-        {list.slice(0, shown).map((t) => (
+        {list.slice(0, shown).map((t, i) => (
           <li key={t.id} className="card overflow-hidden">
             {/* Real exporter output in a sandboxed iframe, so what you see is what ships. */}
-            <SignaturePreview title={`${t.name} preview`} html={renderToEmailHtml(t.doc)} className="border-b border-line" />
+            <SignaturePreview title={`${t.name} preview`} html={renderToEmailHtml(previewDoc(t.doc, i, t.id === mineId && mineImages && Object.keys(mineImages).length ? { images: mineImages, brand: mineBrand ?? null } : undefined))} className="border-b border-line" />
             <div className="flex items-start justify-between gap-3 p-5">
               <div>
                 <h3 className="font-semibold">{t.name}</h3>
                 <p className="mt-1 text-sm text-muted">{t.category}</p>
               </div>
-              <Link href={`${pickPath}?t=${encodeURIComponent(t.id)}`} className="btn shrink-0">
-                {pickLabel}
-              </Link>
+              {onPick ? (
+                <button type="button" className="btn shrink-0" onClick={() => onPick(t.id)}>{pickLabel}</button>
+              ) : (
+                <Link href={`${pickPath}?t=${encodeURIComponent(t.id)}`} className="btn shrink-0">
+                  {pickLabel}
+                </Link>
+              )}
             </div>
           </li>
         ))}

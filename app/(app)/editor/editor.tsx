@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -300,8 +300,8 @@ export function BlockFields({ id, index, block, errors, canUpload, gifEnabled, o
 
 export type SavedSignature = { id: string; name: string; doc: SignatureDoc };
 
-export function Editor({ initial, explicit, aiNotice = false, saved, canSave = false, canUpload = false, gifEnabled = true, assetInfo, polishId }: {
-  initial: string; explicit: boolean; aiNotice?: boolean; saved?: SavedSignature; canSave?: boolean; canUpload?: boolean; gifEnabled?: boolean; assetInfo?: AssetMap;
+export function Editor({ initial, explicit, aiNotice = false, fromCreate = false, saved, canSave = false, canUpload = false, gifEnabled = true, assetInfo, polishId }: {
+  initial: string; explicit: boolean; aiNotice?: boolean; /** Came from the create studio: the back arrow returns there, to the same template. */ fromCreate?: boolean; saved?: SavedSignature; canSave?: boolean; canUpload?: boolean; gifEnabled?: boolean; assetInfo?: AssetMap;
   /** A designer polishing someone's request (?polish=<id>): shows the Deliver banner. */
   polishId?: string;
 }) {
@@ -421,7 +421,11 @@ export function Editor({ initial, explicit, aiNotice = false, saved, canSave = f
     return parsed === snapshot.parsed ? snapshot : { ...snapshot, parsed, html: renderToEmailHtml(parsed) };
   }, [snapshot]);
   // Lint only a fully valid document; while a field is mid-edit and invalid the panel says so instead.
-  const issues = useMemo(() => (current ? lintDoc(current.parsed, assets) : null), [current, assets]);
+  // The check is not urgent: deferring it keeps typing responsive, and the panel catches up a moment later.
+  const deferredCurrent = useDeferredValue(current);
+  const issues = useMemo(() => (deferredCurrent ? lintDoc(deferredCurrent.parsed, assets) : null), [deferredCurrent, assets]);
+  // Serialised once per edit, not on every render (hover, panel toggles, typing in the name field).
+  const docJson = useMemo(() => JSON.stringify(state.doc), [state.doc]);
 
   /* --- click-to-edit: preview click -> open block, focus + select the matching field --- */
   const onPick = useCallback((id: string, hint: PickHint | null) => {
@@ -573,7 +577,7 @@ export function Editor({ initial, explicit, aiNotice = false, saved, canSave = f
 
   const { doc, ids } = state;
   const theme = doc.theme;
-  const unsaved = !savedSnap || savedSnap.doc !== JSON.stringify(doc) || savedSnap.name !== (sigName.trim() || "Untitled signature");
+  const unsaved = !savedSnap || savedSnap.doc !== docJson || savedSnap.name !== (sigName.trim() || "Untitled signature");
 
   const notices = (
     <>
@@ -695,7 +699,7 @@ export function Editor({ initial, explicit, aiNotice = false, saved, canSave = f
         notices={notices}
         header={
           <>
-            <a href="/signatures" aria-label="Back to my signatures" className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-ink">←</a>
+            <a href={fromCreate ? `/create?t=${encodeURIComponent(doc.template_id)}` : "/signatures"} aria-label={fromCreate ? "Back to the template and details" : "Back to my signatures"} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-ink">←</a>
             {canSave ? (
               <>
                 <label htmlFor="sig-name" className="sr-only">Signature name</label>

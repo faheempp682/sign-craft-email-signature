@@ -168,7 +168,7 @@ function socialHtml(style: number, b: B<"social">, k: K): string {
 
 function photoHtml(style: number, b: B<"avatar">, k: K): string {
   const s = b.size;
-  const img = (radius: string) => `<img src="${esc(b.src)}" width="${s}" height="${s}" alt="${esc(b.alt)}" style="display:block;border:0;width:${s}px;height:${s}px;border-radius:${radius};" />`;
+  const img = (radius: string) => `<img src="${esc(b.src)}" width="${s}" height="${s}" alt="${esc(b.alt)}" style="display:block;${b.fit ? "object-fit:" + b.fit + ";" : ""}border:0;width:${s}px;height:${s}px;border-radius:${radius};" />`;
   switch (style) {
     case 1:
       return img("0");

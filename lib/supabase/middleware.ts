@@ -34,10 +34,14 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  // getUser() validates the token with Supabase; getSession() would trust the cookie blindly.
+  // getClaims() verifies the JWT signature (locally against the project's published keys when it uses asymmetric signing keys,
+  // otherwise by asking the auth server), so it never trusts the cookie blindly like getSession() would. It avoids a network
+  // round trip to Supabase before EVERY request, which getUser() cost. Server code that acts for the user (pages, API guards)
+  // still calls getUser(), which does check with the auth server, so a revoked session is refused where it matters.
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data,
+  } = await supabase.auth.getClaims();
+  const user = data?.claims ?? null;
 
   const { pathname, search } = request.nextUrl;
   const isPublic = isPublicPath(pathname);

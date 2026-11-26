@@ -291,7 +291,7 @@ const greenSidebar: Skin = {
 const maroonFrame: Skin = {
   block(b, t) {
     if (b.type === "avatar") {
-      const photo = `<img src="${esc(b.src)}" width="${b.size}" height="${b.size}" alt="${esc(b.alt)}" style="display:block;border:0;width:${b.size}px;height:${b.size}px;" />`;
+      const photo = `<img src="${esc(b.src)}" width="${b.size}" height="${b.size}" alt="${esc(b.alt)}" style="display:block;${b.fit ? "object-fit:" + b.fit + ";" : ""}border:0;width:${b.size}px;height:${b.size}px;" />`;
       return tbl(`<tr><td bgcolor="#FFFFFF" style="background-color:#FFFFFF;padding:4px;">${photo}</td></tr>`);
     }
     if (b.type === "identity") {
@@ -568,7 +568,7 @@ const darkLuxe: Skin = {
   block(b, t) {
     const serif = "Georgia,'Times New Roman',serif";
     if (b.type === "avatar") {
-      const img = `<img src="${esc(b.src)}" width="${b.size}" height="${b.size}" alt="${esc(b.alt)}" style="display:block;border:0;width:${b.size}px;height:${b.size}px;" />`;
+      const img = `<img src="${esc(b.src)}" width="${b.size}" height="${b.size}" alt="${esc(b.alt)}" style="display:block;${b.fit ? "object-fit:" + b.fit + ";" : ""}border:0;width:${b.size}px;height:${b.size}px;" />`;
       return tbl(`<tr><td style="border:1px solid ${t.primary};padding:4px;">${img}</td></tr>`);
     }
     if (b.type === "identity") {
@@ -596,7 +596,7 @@ const darkLuxe: Skin = {
 const pastelPill: Skin = {
   block(b, t) {
     if (b.type === "avatar") {
-      const img = `<img src="${esc(b.src)}" width="${b.size}" height="${b.size}" alt="${esc(b.alt)}" style="display:block;border:0;width:${b.size}px;height:${b.size}px;border-radius:50%;" />`;
+      const img = `<img src="${esc(b.src)}" width="${b.size}" height="${b.size}" alt="${esc(b.alt)}" style="display:block;${b.fit ? "object-fit:" + b.fit + ";" : ""}border:0;width:${b.size}px;height:${b.size}px;border-radius:50%;" />`;
       return tbl(`<tr><td bgcolor="${t.primary}" style="background-color:${t.primary};border-radius:50%;padding:4px;">${img}</td></tr>`);
     }
     if (b.type === "identity") {
@@ -629,9 +629,10 @@ const splitColor: Skin = {
     const id = s.get("identity");
     const co = s.get("contact");
     const so = s.get("social");
-    const left = `<td valign="middle" width="230" bgcolor="${t.primary}" style="width:230px;background-color:${t.primary};padding:24px;border-radius:10px 0 0 10px;">${av?.html ?? ""}${av ? vsp(14) : ""}${id?.html ?? ""}</td>`;
-    const right = `<td valign="middle" style="padding:24px 28px;">${co?.html ?? ""}${so ? vsp(14) + so.html : ""}</td>`;
-    return `<table ${TABLE_ATTRS} width="600" bgcolor="${t.bg}" style="width:600px;background-color:${t.bg};border:1px solid #E5E7EB;border-radius:10px;font-family:${fonts(t)};color:${t.text};"><tr>${left}${right}</tr></table>`;
+    // sc-col / sc-row reuse the row builder's mobile stacking (see row.ts); Outlook desktop ignores it and keeps 600px.
+    const left = `<td class="sc-col sc-pad" valign="middle" width="230" bgcolor="${t.primary}" style="width:230px;background-color:${t.primary};padding:24px;border-radius:10px 0 0 10px;">${av?.html ?? ""}${av ? vsp(14) : ""}${id?.html ?? ""}</td>`;
+    const right = `<td class="sc-col sc-pad" valign="middle" style="padding:24px 28px;">${co?.html ?? ""}${so ? vsp(14) + so.html : ""}</td>`;
+    return `<table ${TABLE_ATTRS} class="sc-row" width="600" bgcolor="${t.bg}" style="width:600px;max-width:100%;background-color:${t.bg};border:1px solid #E5E7EB;border-radius:10px;font-family:${fonts(t)};color:${t.text};"><tr>${left}${right}</tr></table>`;
   },
 };
 
@@ -642,7 +643,7 @@ const talentCard: Skin = {
       // The cropper uses size : height as its aspect, so the photo fills the card's full height without stretching.
       // Always full-height and flush to the card edge, even when the document has no height saved.
       const h = b.height ?? Math.max(238, Math.round(b.size * 1.72));
-      return `<img src="${esc(b.src)}" alt="${esc(b.alt)}" width="${b.size}" height="${h}" style="display:block;width:${b.size}px;height:${h}px;border:0;border-radius:18px 0 0 18px;object-fit:cover;" />`;
+      return `<img src="${esc(b.src)}" alt="${esc(b.alt)}" width="${b.size}" height="${h}" style="display:block;${b.fit ? "object-fit:" + b.fit + ";" : ""}width:${b.size}px;height:${h}px;border:0;border-radius:18px 0 0 18px;object-fit:cover;" />`;
     }
     if (b.type === "identity") {
       return `<div style="font-size:20px;line-height:26px;font-weight:bold;color:${t.text};">${esc(b.name)}</div>${b.title ? `<div style="font-size:14px;line-height:20px;font-weight:bold;color:${t.primary};">${esc(b.title)}</div>` : ""}${b.company ? `<div style="padding-top:4px;font-size:13px;line-height:18px;color:${t.muted};"><span style="color:${t.primary};font-size:15px;font-weight:bold;">&infin;</span>&nbsp; ${esc(b.company)}</div>` : ""}`;
@@ -749,7 +750,7 @@ const scriptContact: Skin = {
 const ringedSales: Skin = {
   block(b, t) {
     if (b.type === "avatar") {
-      return `<img src="${esc(b.src)}" alt="${esc(b.alt)}" width="${b.size}" height="${b.size}" style="display:block;width:${b.size}px;height:${b.size}px;border:4px solid ${t.primary};border-radius:50%;" />`;
+      return `<img src="${esc(b.src)}" alt="${esc(b.alt)}" width="${b.size}" height="${b.size}" style="display:block;${b.fit ? "object-fit:" + b.fit + ";" : ""}width:${b.size}px;height:${b.size}px;border:4px solid ${t.primary};border-radius:50%;" />`;
     }
     if (b.type === "identity") {
       const sub = [b.title, b.company].filter(Boolean).map((x) => esc(x as string)).join(" | ");

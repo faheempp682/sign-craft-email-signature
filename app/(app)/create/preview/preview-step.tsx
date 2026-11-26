@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { SignaturePreview } from "@/components/signature-preview";
 import { SignaturePreviewDialog } from "@/components/signature-preview-dialog";
-import { applyDetails, type Details } from "@/lib/create/fill";
-import { clearDetails, loadDetails } from "@/lib/create/session";
-import { getStorage, saveDraft } from "@/lib/editor/draft";
+import { applyDetailsPreview, applyImages, type Details, type SlotImage } from "@/lib/create/fill";
+import { applyBrand, type Brand } from "@/lib/create/brand";
+import { loadBrand, loadDetails, loadImages } from "@/lib/create/session";
 import { PRESETS, getPreset } from "@/lib/presets";
 import { renderToEmailHtml } from "@/lib/renderer/email-html";
 import { cn } from "@/lib/utils";
@@ -19,6 +19,8 @@ const MAX_PICKED = 8;
 export function PreviewStep({ initialId }: { initialId: string }) {
   const router = useRouter();
   const [details, setDetails] = useState<Details | null | undefined>(undefined); // undefined = not read yet
+  const [brand, setBrand] = useState<Brand | null>(null); // colours read from their logo in the studio
+  const [images, setImages] = useState<Record<string, SlotImage>>({}); // photos or logos added in the studio
   const [picked, setPicked] = useState<string[]>([initialId]); // in the order they were ticked
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [shown, setShown] = useState(PAGE);
@@ -27,20 +29,26 @@ export function PreviewStep({ initialId }: { initialId: string }) {
 
   useEffect(() => {
     const d = loadDetails();
-    if (!d) router.replace(`/create/details?t=${encodeURIComponent(initialId)}`); // refreshed in a new tab: ask again
+    if (!d) router.replace(`/create?t=${encodeURIComponent(initialId)}`); // opened in a new tab: ask again
     setDetails(d);
+    setImages(loadImages());
+    setBrand(loadBrand());
   }, [initialId, router]);
+
+  // Their brand colours apply only while a logo or photo of theirs is in place, the same as in the studio.
+  const activeBrand = Object.keys(images).some((k) => k.startsWith("avatar")) ? brand : null;
 
   // The one they chose first, then the rest in library order.
   const list = useMemo(() => [...PRESETS.filter((p) => p.id === initialId), ...PRESETS.filter((p) => p.id !== initialId)], [initialId]);
   const cache = useMemo(() => (details ? new Map<string, string>() : null), [details]);
   const htmlFor = (id: string): string => {
     if (!details || !cache) return "";
-    let html = cache.get(id);
+    const key = `${id}|${JSON.stringify(images)}|${JSON.stringify(activeBrand)}`; // a new image must not reuse an older render
+    let html = cache.get(key);
     if (html === undefined) {
       const p = getPreset(id);
-      html = p ? renderToEmailHtml(applyDetails(p.doc, details)) : "";
-      cache.set(id, html);
+      html = p ? renderToEmailHtml(applyDetailsPreview(applyImages(applyBrand(p.doc, activeBrand), images), details)) : ""; // the template's sample fills whatever they left blank
+      cache.set(key, html);
     }
     return html;
   };
@@ -67,16 +75,10 @@ export function PreviewStep({ initialId }: { initialId: string }) {
     });
   };
 
+  /** Back to the simple form with this template open. Their details, photos and colours are kept in the session. */
   function choose(id: string) {
-    const preset = getPreset(id);
-    const storage = getStorage();
-    if (!details || !preset) return;
-    if (!storage || !saveDraft(storage, applyDetails(preset.doc, details))) {
-      setError("Your browser is blocking local storage, so the signature could not be opened in the editor. Allow site data and try again.");
-      return;
-    }
-    clearDetails(); // finished: the next signature starts blank, since it may be for someone else
-    router.push("/editor?from=create");
+    if (!getPreset(id)) return;
+    router.push(`/create?t=${encodeURIComponent(id)}`);
   }
 
   const previewing = previewId ? getPreset(previewId) : undefined;
@@ -91,7 +93,7 @@ export function PreviewStep({ initialId }: { initialId: string }) {
             Tick the templates you like and they appear on the right with your details. Use <strong className="font-medium text-ink">Preview</strong> to see one at the bottom of an email in Gmail, Outlook and more.
           </p>
         </div>
-        <Link href={`/create/details?t=${encodeURIComponent(initialId)}`} className="btn shrink-0">Edit my details</Link>
+        <Link href={`/create?t=${encodeURIComponent(initialId)}`} className="btn shrink-0">&larr; Back to editing</Link>
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[22rem_1fr]">
@@ -101,7 +103,7 @@ export function PreviewStep({ initialId }: { initialId: string }) {
             {list.slice(0, shown).map((p) => {
               const on = picked.includes(p.id);
               return (
-                <li key={p.id} data-template={p.id} className={cn("relative overflow-hidden rounded-xl border bg-card transition-all duration-150", on ? "border-brand shadow-md ring-2 ring-brand" : "border-line hover:border-ink/40")}>
+                <li key={p.id} data-template={p.id} className={cn("relative overflow-hidden rounded-xl border bg-card transition-all duration-150", on ? "border-line shadow-md" : "border-line hover:border-ink/40")}>
                   <label className="block cursor-pointer">
                     <SignaturePreview title={`${p.name} with your details`} html={htmlFor(p.id)} height={120} className="border-b border-line" />
                     <span className="block px-3 py-2.5">

@@ -48,9 +48,11 @@ export default async function EditorPage({ searchParams }: { searchParams: Promi
   const polishId = polish && z.string().uuid().safeParse(polish).success ? polish : undefined;
   // Animated GIFs are enabled per account; when the check cannot be made, say "off" rather than offering a tool that will fail.
   const supabase = user ? await createClient() : null;
-  const gifEnabled = supabase ? (await featureEnabled(supabase, "animated_gif")) === true : true;
-  const saved = s ? await loadSaved(s, user?.id) : null;
+  // The feature check and the signature load do not depend on each other.
+  const [gifFlag, saved] = await Promise.all([supabase ? featureEnabled(supabase, "animated_gif") : null, s ? loadSaved(s, user?.id) : null]);
+  const gifEnabled = supabase ? gifFlag === true : true;
   if (s && !saved) notFound();
+  const assetInfo = await loadAssetInfo(saved);
 
   // An explicit ?t= means "start from this template". Without it the editor resumes the saved draft.
   const explicit = !saved && !!t && !!getPreset(t);
@@ -67,10 +69,11 @@ export default async function EditorPage({ searchParams }: { searchParams: Promi
         initial={initial}
         explicit={explicit}
         aiNotice={from === "ai" && !explicit && !saved}
+        fromCreate={from === "create" && !saved}
         saved={saved ?? undefined}
         canSave={!!user}
         canUpload={!!user && !!getBunnyConfig()}
-        assetInfo={await loadAssetInfo(saved)}
+        assetInfo={assetInfo}
         gifEnabled={gifEnabled}
         polishId={polishId}
       />

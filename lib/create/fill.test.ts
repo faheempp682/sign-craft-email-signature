@@ -3,7 +3,7 @@ import { PRESETS } from "@/lib/presets";
 import { SignatureDocSchema, type Block } from "@/lib/schema/document";
 import { renderToEmailHtml } from "@/lib/renderer/email-html";
 import { envSignatureLimit, parseLimit } from "@/lib/signature-limit";
-import { EMPTY_DETAILS, applyDetails, socialUrl, toHttps, validateDetails, type Details } from "./fill";
+import { EMPTY_DETAILS, applyDetails, applyDetailsPreview, applyImages, extractDetails, imageSlots, patchDetails, socialUrl, toHttps, validateDetails, type Details } from "./fill";
 
 const jane = { ...EMPTY_DETAILS, name: "Jane Cooper", title: "Head of Sales", company: "Acme", phone: "+1 555 0100", email: "jane@acme.com", website: "acme.com", linkedin: "janecooper", twitter: "@jane" };
 
@@ -101,7 +101,7 @@ describe("no sample data leaks into a customer's signature (all templates)", () 
   const cases: [string, Details][] = [
     ["only a name", { ...EMPTY_DETAILS, name: "Zed Quill" }],
     ["every optional field empty except email", { ...EMPTY_DETAILS, name: "Zed Quill", email: "zed@quill.example" }],
-    ["everything filled", { name: "Zed Quill", title: "Chief Quillmaker", company: "Quill & Co", phone: "+44 20 7946 0000", email: "zed@quill.example", website: "quill.example", address: "9 Ink Lane, Leeds", linkedin: "zedquill", twitter: "@zedquill", instagram: "zedquill" }],
+    ["everything filled", { ...EMPTY_DETAILS, name: "Zed Quill", title: "Chief Quillmaker", company: "Quill & Co", phone: "+44 20 7946 0000", email: "zed@quill.example", website: "quill.example", address: "9 Ink Lane, Leeds", linkedin: "zedquill", twitter: "@zedquill", instagram: "zedquill", facebook: "zedquill", youtube: "zedquill", github: "zedquill", note: "Quills by appointment only", buttonLabel: "Order a quill", buttonUrl: "quill.example/order" }],
   ];
   for (const [label, details] of cases) {
     it(`${label}: nothing from the template's sample person or promo is in the HTML`, () => {
@@ -134,5 +134,113 @@ describe("no sample data leaks into a customer's signature (all templates)", () 
       expect(walk(doc.blocks).filter((b) => kinds.includes(b.type)), p.id).toEqual([]);
     }
     expect(PRESETS.some((p) => walk(p.doc.blocks).some((b) => b.type === "banner"))).toBe(true); // the test is not vacuous
+  });
+});
+
+describe("applyDetailsPreview", () => {
+  it("keeps the template's sample for empty fields and replaces only what was typed", () => {
+    for (const p of PRESETS) {
+      const sample = walk(p.doc.blocks).find((b) => b.type === "identity");
+      const empty = applyDetailsPreview(p.doc, EMPTY_DETAILS);
+      expect(walk(empty.blocks).find((b) => b.type === "identity"), p.id).toMatchObject({ name: sample && sample.type === "identity" ? sample.name : "Your name" });
+      const typed = applyDetailsPreview(p.doc, { ...EMPTY_DETAILS, name: "Sam" });
+      expect(walk(typed.blocks).find((b) => b.type === "identity"), p.id).toMatchObject({ name: "Sam" });
+      expect(SignatureDocSchema.safeParse(typed).success, p.id).toBe(true);
+    }
+  });
+
+  it("ignores a half-typed email instead of breaking the preview", () => {
+    const doc = applyDetailsPreview(PRESETS[0].doc, { ...EMPTY_DETAILS, name: "Sam", email: "sam@" });
+    expect(SignatureDocSchema.safeParse(doc).success).toBe(true);
+  });
+});
+
+describe("image slots", () => {
+  const url = "https://cdn.example.com/me.png";
+
+  it("puts an uploaded photo in its slot, set to fill the frame, and leaves the other slots alone", () => {
+    const p = PRESETS.find((x) => imageSlots(x.doc).some((s) => s.kind === "avatar"))!;
+    const slot = imageSlots(p.doc).find((s) => s.kind === "avatar")!;
+    const out = applyDetails(applyImages(p.doc, { [slot.key]: { url } }), jane);
+    const avatars = walk(out.blocks).filter((b) => b.type === "avatar");
+    expect(avatars.some((b) => b.type === "avatar" && b.src === url && b.fit === "cover")).toBe(true);
+    expect(SignatureDocSchema.safeParse(out).success).toBe(true);
+    expect(renderToEmailHtml(out)).toContain("object-fit:cover");
+    expect(applyImages(p.doc, {})).toBe(p.doc);
+  });
+
+  it("keeps a banner only when the person added one, sized to the picture's own shape", () => {
+    const p = PRESETS.find((x) => imageSlots(x.doc).some((s) => s.kind === "banner"))!;
+    const slot = imageSlots(p.doc).find((s) => s.kind === "banner")!;
+    expect(walk(applyDetails(p.doc, jane).blocks).some((b) => b.type === "banner")).toBe(false); // the template's sample is dropped
+    const out = applyDetails(applyImages(p.doc, { [slot.key]: { url, width: 1200, height: 300 } }), jane);
+    const banner = walk(out.blocks).find((b) => b.type === "banner");
+    expect(banner).toMatchObject({ src: url, width: 600, height: 150 });
+    expect(SignatureDocSchema.safeParse(out).success).toBe(true);
+  });
+
+  it("does not add object-fit unless a fit was chosen", () => {
+    expect(renderToEmailHtml(applyDetails(PRESETS[0].doc, jane))).not.toContain("object-fit");
+  });
+
+  it("carries a photo to another template's photo slot even when the banners differ", () => {
+    const withBanner = PRESETS.find((x) => imageSlots(x.doc).some((s) => s.kind === "banner") && imageSlots(x.doc).some((s) => s.kind === "avatar"))!;
+    const photoOnly = PRESETS.find((x) => imageSlots(x.doc).some((s) => s.kind === "avatar") && !imageSlots(x.doc).some((s) => s.kind === "banner"))!;
+    const saved = { avatar0: { url } }; // what the studio stores after one upload
+    for (const p of [withBanner, photoOnly]) {
+      const avatars = walk(applyImages(p.doc, saved).blocks).filter((b) => b.type === "avatar");
+      expect(avatars.some((b) => b.type === "avatar" && b.src === url), p.id).toBe(true);
+      expect(walk(applyImages(p.doc, saved).blocks).some((b) => b.type === "banner" && b.src === url), p.id).toBe(false);
+    }
+  });
+});
+
+describe("coming back from the advanced editor", () => {
+  const base = PRESETS.find((p) => walk(p.doc.blocks).some((b) => b.type === "identity") && walk(p.doc.blocks).some((b) => b.type === "contact") && walk(p.doc.blocks).some((b) => b.type === "social"))!;
+
+  it("reads the form fields back out of an edited design", () => {
+    const edited = applyDetails(base.doc, jane);
+    expect(extractDetails(edited)).toMatchObject({ name: "Jane Cooper", title: "Head of Sales", company: "Acme", phone: "+1 555 0100", email: "jane@acme.com" });
+    expect(extractDetails(edited).linkedin).toContain("linkedin.com/in/janecooper");
+  });
+
+  it("never leaves a form field undefined, even when the design has no value for it", () => {
+    // A design with only a name: everything else is absent, and the merged form state must still be all strings.
+    const bare = { ...base.doc, blocks: [{ type: "identity" as const, name: "Sam" }] };
+    const merged = { ...EMPTY_DETAILS, ...extractDetails(bare) };
+    for (const v of Object.values(merged)) expect(typeof v).toBe("string");
+    expect(() => patchDetails(bare, merged)).not.toThrow();
+    for (const p of PRESETS) {
+      const m = { ...EMPTY_DETAILS, ...extractDetails(p.doc) };
+      for (const v of Object.values(m)) expect(typeof v, p.id).toBe("string");
+      expect(() => patchDetails(p.doc, m), p.id).not.toThrow();
+    }
+  });
+
+  it("patches only the fields the form covers and keeps everything else they did in the editor", () => {
+    const edited = { ...applyDetails(base.doc, jane), blocks: [...applyDetails(base.doc, jane).blocks, { type: "text" as const, text: "Added in the editor" } as Block] };
+    const out = patchDetails(edited, { ...jane, name: "Sam Lee", phone: "" });
+    const all = walk(out.blocks);
+    expect(all.find((b) => b.type === "identity")).toMatchObject({ name: "Sam Lee", title: "Head of Sales" });
+    expect(all.find((b) => b.type === "contact")).toMatchObject({ email: "jane@acme.com", phone: undefined });
+    expect(all.some((b) => b.type === "text")).toBe(true); // their extra block survives
+    expect(out.theme).toEqual(edited.theme); // and so does their styling
+    expect(SignatureDocSchema.safeParse(out).success).toBe(true);
+  });
+
+  it("drops a link when its field is cleared but keeps networks the form has no field for", () => {
+    const doc = applyDetails(base.doc, jane);
+    const withTiktok = { ...doc, blocks: doc.blocks.map((b) => (b.type === "social" ? { ...b, links: [...b.links, { network: "tiktok" as const, url: "https://www.tiktok.com/@jane" }] } : b)) };
+    const out = patchDetails(withTiktok, { ...jane, linkedin: "" });
+    const links = walk(out.blocks).flatMap((b) => (b.type === "social" ? b.links : []));
+    expect(links.map((l) => l.network)).toContain("tiktok");
+    expect(links.map((l) => l.network)).not.toContain("linkedin");
+    expect(links.map((l) => l.network)).toContain("twitter");
+  });
+
+  it("keeps a half-typed email as it was instead of breaking the design", () => {
+    const doc = applyDetails(base.doc, jane);
+    const out = patchDetails(doc, { ...jane, email: "jane@" });
+    expect(walk(out.blocks).find((b) => b.type === "contact")).toMatchObject({ email: "jane@acme.com" });
   });
 });

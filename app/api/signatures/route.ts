@@ -41,8 +41,11 @@ export async function POST(req: Request) {
     return json(data);
   }
 
-  const { count } = await supabase.from("signatures").select("id", { count: "exact", head: true }).eq("owner_id", g.ctx.user.id); // own rows only: org admins can also read tagged signatures of others
-  const limit = await getSignatureLimit(supabase);
+  // Own rows only: org admins can also read tagged signatures of others. The count and the limit are independent, so fetch them together.
+  const [{ count }, limit] = await Promise.all([
+    supabase.from("signatures").select("id", { count: "exact", head: true }).eq("owner_id", g.ctx.user.id),
+    getSignatureLimit(supabase),
+  ]);
   if ((count ?? 0) >= limit) return json({ error: "quota", limit, message: `You have reached the limit of ${limit} saved signatures. Delete one to save another.` }, 429);
 
   const { data, error } = await supabase.from("signatures").insert(row).select("id, name, updated_at").single();

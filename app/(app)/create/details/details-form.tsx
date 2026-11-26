@@ -6,23 +6,33 @@ import { useEffect, useState } from "react";
 import { EMPTY_DETAILS, validateDetails, type Details } from "@/lib/create/fill";
 import { loadDetails, saveDetails } from "@/lib/create/session";
 
-type Spec = { key: keyof Details; label: string; placeholder: string; type?: string; autoComplete?: string; required?: boolean; wide?: boolean };
+export type Spec = { key: keyof Details; label: string; placeholder: string; type?: string; autoComplete?: string; required?: boolean; wide?: boolean };
 
-const ABOUT: Spec[] = [
+export const ABOUT: Spec[] = [
   { key: "name", label: "Full name", placeholder: "Jane Cooper", autoComplete: "name", required: true },
   { key: "title", label: "Job title", placeholder: "Head of Sales", autoComplete: "organization-title" },
   { key: "company", label: "Company", placeholder: "Acme Inc.", autoComplete: "organization" },
 ];
-const REACH: Spec[] = [
+export const REACH: Spec[] = [
   { key: "phone", label: "Phone", placeholder: "+1 555 123 4567", type: "tel", autoComplete: "tel" },
   { key: "email", label: "Email", placeholder: "jane@acme.com", type: "email", autoComplete: "email" },
   { key: "website", label: "Website", placeholder: "acme.com", autoComplete: "url" },
   { key: "address", label: "Address", placeholder: "12 High Street, London", autoComplete: "street-address", wide: true },
 ];
-const SOCIAL: Spec[] = [
+export const SOCIAL: Spec[] = [
   { key: "linkedin", label: "LinkedIn", placeholder: "linkedin.com/in/janecooper or janecooper" },
   { key: "twitter", label: "X (Twitter)", placeholder: "@janecooper" },
   { key: "instagram", label: "Instagram", placeholder: "@janecooper" },
+  { key: "facebook", label: "Facebook", placeholder: "facebook.com/janecooper or janecooper" },
+  { key: "youtube", label: "YouTube", placeholder: "@janecooper" },
+  { key: "github", label: "GitHub", placeholder: "janecooper" },
+];
+/** Networks shown for every template with a social block; the others only when the template itself has them. */
+export const COMMON_SOCIAL = ["linkedin", "twitter", "instagram"];
+export const NOTE: Spec[] = [{ key: "note", label: "Footer line", placeholder: "Services offered, a tagline or a short notice", wide: true }];
+export const BUTTON: Spec[] = [
+  { key: "buttonLabel", label: "Button text", placeholder: "Book a call" },
+  { key: "buttonUrl", label: "Button link", placeholder: "acme.com/book", type: "url" },
 ];
 
 export function DetailsForm({ templateId, templateName }: { templateId: string; templateName: string }) {
@@ -73,6 +83,7 @@ export function DetailsForm({ templateId, templateName }: { templateId: string; 
   return (
     <div className="mx-auto max-w-2xl">
       <header className="mb-8">
+        <Link href={`/create?t=${encodeURIComponent(templateId)}`} className="mb-4 inline-block text-sm text-muted hover:text-ink">&larr; Back</Link>
         <p className="eyebrow mb-2">Step 2 of 3</p>
         <h1 className="text-3xl font-semibold tracking-tight">Tell us about you.</h1>
         <p className="mt-3 text-muted">

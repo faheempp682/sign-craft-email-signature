@@ -56,7 +56,7 @@ export type Ctx = { theme: Theme };
 export function renderAvatar(b: Extract<Block, { type: "avatar" }>): string {
   const radius = b.shape === "circle" ? "50%" : b.shape === "rounded" ? "12px" : b.shape === "arch" ? `${Math.round(b.size / 2)}px ${Math.round(b.size / 2)}px 0 0` : "0";
   // border-radius is ignored by Outlook desktop, which falls back to a square. Acceptable degradation.
-  return `<img src="${esc(b.src)}" width="${b.size}" height="${b.size}" alt="${esc(b.alt)}" style="display:block;border:0;width:${b.size}px;height:${b.size}px;border-radius:${radius};" />`;
+  return `<img src="${esc(b.src)}" width="${b.size}" height="${b.size}" alt="${esc(b.alt)}" style="display:block;${b.fit ? "object-fit:" + b.fit + ";" : ""}border:0;width:${b.size}px;height:${b.size}px;border-radius:${radius};" />`;
 }
 
 function renderIdentity(b: Extract<Block, { type: "identity" }>, { theme }: Ctx): string {

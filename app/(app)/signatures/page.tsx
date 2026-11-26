@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { PRESETS } from "@/lib/presets";
 import { SignatureDocSchema } from "@/lib/schema/document";
 import { createClient, getUser } from "@/lib/supabase/server";
@@ -40,9 +39,6 @@ export default async function SignaturesPage() {
           <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Signatures that never break.</h1>
           <p className="mt-3 max-w-xl text-muted">Pick a starting template from the library. Every one exports table-based, Outlook-safe HTML from a single JSON document.</p>
         </div>
-        <Link href="/editor" className="btn btn-primary self-start sm:self-auto">
-          Open editor
-        </Link>
       </header>
 
       {mine && <MySignatures items={mine} limit={usage?.limit} />}
@@ -56,7 +52,7 @@ export default async function SignaturesPage() {
         ))}
       </dl>
 
-      <Gallery />
+      <Gallery pickPath="/editor" />
     </>
   );
 }

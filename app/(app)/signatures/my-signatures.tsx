@@ -5,7 +5,11 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { renderToEmailHtml } from "@/lib/renderer/email-html";
 import type { SignatureDoc } from "@/lib/schema/document";
+import { SignaturePreview } from "@/components/signature-preview";
 import { RequestPolish } from "@/components/request-polish";
+
+/** The designer "Request polish" button is hidden for now. Set to true to bring it back. */
+const SHOW_REQUEST_POLISH = false;
 
 export type MySignature = { id: string; name: string; updatedAt: string; doc: SignatureDoc };
 
@@ -67,14 +71,7 @@ export function MySignatures({ items, limit }: { items: MySignature[]; limit?: n
         <ul className="grid gap-5 md:grid-cols-2">
           {items.map((s) => (
             <li key={s.id} className="card overflow-hidden">
-              <iframe
-                title={`${s.name} preview`}
-                sandbox=""
-                tabIndex={-1}
-                loading="lazy"
-                srcDoc={`<!doctype html><html><body style="margin:12px;background:#fff;zoom:0.8;">${renderToEmailHtml(s.doc)}</body></html>`}
-                className="pointer-events-none h-64 w-full border-b border-line bg-white"
-              />
+              <SignaturePreview title={`${s.name} preview`} html={renderToEmailHtml(s.doc)} height={256} className="border-b border-line" />
               <div className="space-y-4 p-5">
                 <div className="min-w-0">
                   <h3 className="truncate font-semibold">{s.name}</h3>
@@ -82,7 +79,7 @@ export function MySignatures({ items, limit }: { items: MySignature[]; limit?: n
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Link href={`/editor?s=${s.id}`} className="btn btn-primary">Edit</Link>
-                  <RequestPolish signatureId={s.id} origin="manual" />
+                  {SHOW_REQUEST_POLISH && <RequestPolish signatureId={s.id} origin="manual" />}
                   <button className="btn" disabled={busy === s.id} onClick={() => remove(s)} aria-label={`Delete ${s.name}`}>
                     {busy === s.id ? "Deleting…" : "Delete"}
                   </button>
