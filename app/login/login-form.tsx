@@ -4,8 +4,8 @@ import { useActionState, useState } from "react";
 import { PasswordInput } from "@/components/password-input";
 import { authenticate, requestPasswordReset, type AuthState } from "./actions";
 
-const FIELD = "min-h-12 w-full rounded-xl border border-transparent bg-surface-2/60 px-4 text-sm outline-none transition-colors placeholder:text-muted focus:border-[#1d3fd1] focus:bg-surface";
-const PRIMARY = "inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-[#1d3fd1] text-base font-semibold text-white transition hover:brightness-110 disabled:opacity-60";
+const FIELD = "min-h-12 w-full rounded-xl border border-transparent bg-surface-2/60 px-4 text-sm outline-none transition-colors placeholder:text-muted focus:border-accent focus:bg-surface";
+const PRIMARY = "inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-accent text-base font-semibold text-accent-ink transition hover:brightness-110 disabled:opacity-60";
 
 export function LoginForm({ next }: { next: string }) {
   const [mode, setMode] = useState<"in" | "up" | "forgot">("in");
@@ -22,10 +22,10 @@ export function LoginForm({ next }: { next: string }) {
         </div>
         <div role="status" aria-live="polite">
           {resetState.error && <p className="text-sm text-red-600 dark:text-red-400">{resetState.error}</p>}
-          {resetState.message && <p className="text-sm text-[#1d3fd1] dark:text-[#8cc8ff]">{resetState.message}</p>}
+          {resetState.message && <p className="text-sm text-brand">{resetState.message}</p>}
         </div>
         <button type="submit" className={PRIMARY} disabled={resetPending}>{resetPending ? "Please wait…" : "Send reset link"}</button>
-        <button type="button" className="min-h-11 w-full text-sm font-semibold text-[#1d3fd1] dark:text-[#8cc8ff]" onClick={() => setMode("in")}>Back to sign in</button>
+        <button type="button" className="min-h-11 w-full text-sm font-semibold text-brand" onClick={() => setMode("in")}>Back to sign in</button>
       </form>
     );
   }
@@ -45,18 +45,18 @@ export function LoginForm({ next }: { next: string }) {
       </div>
 
       {mode === "in" && (
-        <button type="button" className="-mt-2 text-sm font-semibold text-[#1d3fd1] dark:text-[#8cc8ff]" onClick={() => setMode("forgot")}>Forgot password?</button>
+        <button type="button" className="-mt-2 text-sm font-semibold text-brand" onClick={() => setMode("forgot")}>Forgot password?</button>
       )}
 
       <div role="status" aria-live="polite">
         {state.error && <p className="text-sm text-red-600 dark:text-red-400">{state.error}</p>}
-        {state.message && <p className="text-sm text-[#1d3fd1] dark:text-[#8cc8ff]">{state.message}</p>}
+        {state.message && <p className="text-sm text-brand">{state.message}</p>}
       </div>
 
       <button type="submit" className={PRIMARY} disabled={pending}>
         {pending ? "Please wait…" : mode === "in" ? "Sign in" : "Create my account"}
       </button>
-      <button type="button" className="min-h-11 w-full text-sm font-semibold text-[#1d3fd1] dark:text-[#8cc8ff]" onClick={() => setMode(mode === "in" ? "up" : "in")}>
+      <button type="button" className="min-h-11 w-full text-sm font-semibold text-brand" onClick={() => setMode(mode === "in" ? "up" : "in")}>
         {mode === "in" ? "Invited? Create your account" : "Already have an account? Sign in"}
       </button>
     </form>

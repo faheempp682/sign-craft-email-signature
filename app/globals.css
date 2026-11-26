@@ -180,7 +180,23 @@ body {
   mask-image: linear-gradient(to bottom, #000 40%, transparent);
 }
 
+/* Login step tiles: dark glass and one looping animation each (decorative only). */
+.login-tile {
+  background-color: rgb(8 11 18 / 0.35);
+}
+@keyframes lt-cursor { 0% { transform: translate(34px, 34px); opacity: 0; } 25% { opacity: 1; } 60%, 100% { transform: translate(0, 0); opacity: 1; } 100% { opacity: 0; } }
+@keyframes lt-glow { 0%, 100% { box-shadow: 0 0 0 0 rgb(221 179 163 / 0.0), 0 0 14px rgb(221 179 163 / 0.25); } 60% { box-shadow: 0 0 0 4px rgb(221 179 163 / 0.18), 0 0 26px rgb(221 179 163 / 0.5); } }
+@keyframes lt-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(7px); } }
+@keyframes lt-ripple { 0% { transform: scale(0.85); opacity: 0.7; } 100% { transform: scale(1.9); opacity: 0; } }
+@keyframes lt-line { 0%, 100% { transform: scaleX(0.35); opacity: 0.5; } 50% { transform: scaleX(1); opacity: 1; } }
+.lt-cursor { animation: lt-cursor 3.2s ease-out infinite; }
+.lt-glow { animation: lt-glow 3.2s ease-in-out infinite; }
+.lt-bob { animation: lt-bob 4s ease-in-out infinite; }
+.lt-ripple { animation: lt-ripple 3s ease-out infinite; }
+.lt-line { transform-origin: left; animation: lt-line 2.8s ease-in-out infinite; }
+
 @media (prefers-reduced-motion: reduce) {
+  .lt-cursor, .lt-glow, .lt-bob, .lt-ripple, .lt-line { animation: none; }
   * {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
