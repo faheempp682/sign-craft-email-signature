@@ -20,7 +20,7 @@ export type MenuInput = {
 };
 
 /**
- * Temporary: while true the sidebar shows only Create, plus "My signature" and "Roles and invites" under Team.
+ * Temporary: while true the sidebar shows only Create, plus "Roles and invites" under Team ("My signature" is hidden until the directory link is sorted out).
  * The Grow and Admin groups, the other Team links and the Exporter are hidden, not removed. Set to false to bring them all back.
  */
 export const HIDE_UNFINISHED_MENUS = true;
@@ -35,7 +35,7 @@ export const MAIN_LINKS: NavLink[] = [
   { href: "/guides", label: "Guides", icon: "guides" },
 ].filter((l) => !HIDE_UNFINISHED_MENUS || !HIDDEN_WHILE_HIDING.has(l.href)) as NavLink[];
 
-const ALWAYS_SHOWN_WHILE_HIDING = new Set(["/team/mine", "/admin/users"]);
+const ALWAYS_SHOWN_WHILE_HIDING = new Set(["/admin/users"]);
 
 /**
  * The one sidebar menu, worked out on the server from the role and the feature flags. Navigation only: every page and

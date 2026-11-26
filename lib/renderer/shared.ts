@@ -218,6 +218,14 @@ export const EMAIL_ICON_BASE = (
   (process.env.NEXT_PUBLIC_SITE_URL ? `${process.env.NEXT_PUBLIC_SITE_URL.replace(/\/+$/, "")}/email-icons/v1` : "https://sign-craft.b-cdn.net/email-icons/v1")
 ).replace(/\/+$/, "");
 
+/**
+ * Plain icons ship twice: a dark glyph for light backgrounds and a white one for dark. Dark-mode clients that honour
+ * prefers-color-scheme (Apple Mail, iOS Mail) swap them with ICON_DARK_CSS; the rest keep the dark glyph.
+ */
+export const ICON_LIGHT_CLASS = "sc-ic-l";
+export const ICON_DARK_CLASS = "sc-ic-d";
+export const ICON_DARK_CSS = `<style type="text/css">@media (prefers-color-scheme:dark){.${ICON_LIGHT_CLASS}{display:none!important}.${ICON_DARK_CLASS}{display:block!important}}</style>`;
+
 export const emailIconUrl = (name: string): string => `${EMAIL_ICON_BASE}/${name}.png`;
 
 /** https, mailto: and tel: only. */
@@ -233,7 +241,7 @@ function renderIconText(b: Extract<Block, { type: "icontext" }>, { theme }: Ctx)
   const icon = b.src
     ? `<img src="${esc(b.src)}" width="${size}" height="${size}" alt="" style="display:block;border:0;width:${size}px;height:${size}px;" />`
     : b.iconStyle === "plain"
-    ? `<img src="${esc(emailIconUrl(`${b.icon}-dark`))}" width="${size}" height="${size}" alt="" style="display:block;border:0;width:${size}px;height:${size}px;" />`
+    ? `<img class="${ICON_LIGHT_CLASS}" src="${esc(emailIconUrl(`${b.icon}-dark`))}" width="${size}" height="${size}" alt="" style="display:block;border:0;width:${size}px;height:${size}px;" /><img class="${ICON_DARK_CLASS}" src="${esc(emailIconUrl(b.icon))}" width="${size}" height="${size}" alt="" style="display:none;mso-hide:all;border:0;width:${size}px;height:${size}px;" />`
     : `<table ${TABLE_ATTRS}><tr><td align="center" valign="middle" width="${size}" height="${size}" bgcolor="${b.iconColor ?? theme.primary}" style="width:${size}px;height:${size}px;background-color:${b.iconColor ?? theme.primary};border-radius:50%;"><img src="${esc(emailIconUrl(b.icon))}" width="${glyph}" height="${glyph}" alt="" style="display:block;border:0;width:${glyph}px;height:${glyph}px;margin:${pad}px;" /></td></tr></table>`;
   const body = b.text.split(/\r?\n/).map(esc).join("<br />");
   const href = b.href ? safeLink(b.href) : null;

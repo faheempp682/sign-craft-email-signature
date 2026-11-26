@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { mockEmailDocument } from "@/lib/create/mock-email";
 import { CLIENTS, CLIENT_IDS, type ClientId } from "@/lib/preview-clients";
+import { fitFrameToWidth } from "@/lib/preview-fit";
 import { cn } from "@/lib/utils";
 
 /**
@@ -14,6 +15,15 @@ export function SignaturePreviewDialog({ open, onOpenChange, name, html, onChoos
   const [client, setClient] = useState<ClientId>("gmail");
   const [dark, setDark] = useState(false);
   const c = CLIENTS[client];
+  const frame = useRef<HTMLIFrameElement>(null);
+  const fit = () => fitFrameToWidth(frame.current);
+  useEffect(() => {
+    const f = frame.current;
+    if (!f || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(fit);
+    ro.observe(f);
+    return () => ro.disconnect();
+  }, [open, client]);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex h-[min(90vh,780px)] max-w-5xl flex-col gap-0 overflow-hidden p-0">
@@ -44,7 +54,10 @@ export function SignaturePreviewDialog({ open, onOpenChange, name, html, onChoos
         <div className="min-h-0 flex-1 bg-surface-2 p-2 sm:p-4">
           <iframe
             title={`${name} in ${c.label}`}
-            sandbox=""
+            ref={frame}
+            onLoad={fit}
+            // allow-same-origin (no scripts) only so the page can measure and scale the content.
+            sandbox="allow-same-origin"
             srcDoc={mockEmailDocument(html, client, dark)}
             style={{ width: c.width ?? "100%" }}
             className="mx-auto block h-full max-w-full rounded-lg border border-line bg-white shadow-sm"

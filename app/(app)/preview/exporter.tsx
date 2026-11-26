@@ -8,6 +8,7 @@ import { TEMPLATE_META, getTemplate } from "@/lib/templates";
 import { copyHtmlRich, downloadHtm } from "@/lib/export-client";
 import { darkVariantHtml } from "@/lib/dark";
 import { CLIENTS, CLIENT_IDS, previewDocument, type ClientId } from "@/lib/preview-clients";
+import { fitFrameToWidth } from "@/lib/preview-fit";
 import { GmailPush } from "@/components/gmail-push";
 import { knownDifferences } from "@/lib/render/differences";
 import { ClientBadge } from "./render-ui";
@@ -58,7 +59,8 @@ export function Exporter({ initial }: { initial: TemplateId }) {
           <iframe
             title={`Signature preview, ${CLIENTS[client].label}`}
             srcDoc={srcDoc}
-            sandbox=""
+            onLoad={(e) => fitFrameToWidth(e.currentTarget)}
+            sandbox="allow-same-origin"
             style={{ width: frameWidth ?? "100%" }}
             className="mx-auto block h-[420px] max-w-full border-line bg-white sm:rounded-lg sm:border"
           />

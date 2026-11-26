@@ -2,6 +2,13 @@ import type { DarkMode } from "@/lib/render/dark";
 import { prepareHtml, type Pipeline } from "@/lib/render/simulate";
 import type { RenderTargetId } from "@/lib/render/targets";
 
+/** Preview of ICON_DARK_CSS: hide the dark glyph, show the white one. */
+function swapDarkIcons(html: string): string {
+  return html
+    .replace(/(<img class="sc-ic-l"[^>]*?style=")display:block;/g, "$1display:none;")
+    .replace(/(<img class="sc-ic-d"[^>]*?style=")display:none;mso-hide:all;/g, "$1display:block;");
+}
+
 export type ClientId = "gmail" | "outlook" | "outlook-win" | "apple-mail" | "thunderbird" | "mobile";
 
 /**
@@ -131,7 +138,9 @@ export const CLIENT_IDS = Object.keys(CLIENTS) as ClientId[];
 /** The signature HTML as this client's preview should draw it (simulation and dark mode applied, structure unchanged). */
 export function clientHtml(html: string, client: ClientId, dark: boolean): string {
   const c = CLIENTS[client];
-  return prepareHtml(html, c.pipeline, dark ? c.darkMode : "none").html;
+  const out = prepareHtml(html, c.pipeline, dark ? c.darkMode : "none").html;
+  // Clients with a dark pane honour prefers-color-scheme (Apple Mail, iOS Mail), so show the white icon glyphs there. Gmail web stays light.
+  return dark && c.dark.bg !== c.light.bg ? swapDarkIcons(out) : out;
 }
 
 export function previewDocument(html: string, client: ClientId, dark: boolean): string {

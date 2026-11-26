@@ -1,5 +1,5 @@
 import type { Block, SignatureDoc, Theme } from "@/lib/schema/document";
-import { GAP, TABLE_ATTRS, esc, fontStack, renderBlock, safeHttpsUrl, withTracking, type Ctx, type TrackOptions } from "./shared";
+import { GAP, ICON_DARK_CLASS, ICON_DARK_CSS, TABLE_ATTRS, esc, fontStack, renderBlock, safeHttpsUrl, withTracking, type Ctx, type TrackOptions } from "./shared";
 import { isCardTemplate, renderCardBlock, renderCardTemplate } from "./cards";
 import { STACK_CSS, STACK_MARK } from "./row";
 
@@ -81,5 +81,6 @@ export function renderToEmailHtml(doc: SignatureDoc, options?: RenderOptions): s
     }
   });
   // Only output that contains a stacking column gets the media query, so every existing signature exports byte-for-byte as before.
-  return html.includes(STACK_MARK) || html.includes(`${STACK_MARK.slice(0, -1)} `) ? STACK_CSS + html : html;
+  const stacked = html.includes(STACK_MARK) || html.includes(`${STACK_MARK.slice(0, -1)} `) ? STACK_CSS + html : html;
+  return html.includes(`class="${ICON_DARK_CLASS}"`) ? ICON_DARK_CSS + stacked : stacked;
 }

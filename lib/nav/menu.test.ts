@@ -62,9 +62,9 @@ describe("active link", () => {
 });
 
 describe("temporarily hidden menus", () => {
-  it("shows only Create, plus My signature and Roles and invites under Team", () => {
+  it("shows only Create, plus Roles and invites under Team", () => {
     const groups = buildVisibleMenu({ role: "admin", platform: true, flags: { team_deploy: true, directory_sync: true, health_monitor: true, digital_card: true, agency_mode: true } });
     expect(groups.map((g) => g.label)).toEqual(["Create", "Team"]);
-    expect(groups[1].links.map((l) => l.href)).toEqual(["/admin/users", "/team/mine"]);
+    expect(groups[1].links.map((l) => l.href)).toEqual(["/admin/users"]);
   });
 });
