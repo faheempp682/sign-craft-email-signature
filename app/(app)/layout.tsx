@@ -1,4 +1,4 @@
-import { BottomNav, Footer, Sidebar, Topbar } from "@/components/nav";
+import { Footer, Sidebar, Topbar } from "@/components/nav";
 import { OrgSwitcher } from "@/components/org-switcher";
 import { currentRole, featureEnabled, isPlatformAdmin } from "@/lib/authz/guard";
 import type { Feature } from "@/lib/authz/roles";
@@ -9,6 +9,7 @@ const NAV_FEATURES: Feature[] = ["digital_card", "designer_polish", "team_deploy
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getUser();
+  const avatarUrl = typeof user?.user_metadata?.avatar_url === "string" && user.user_metadata.avatar_url.startsWith("https://") ? user.user_metadata.avatar_url : null;
   const role = user ? await currentRole() : null;
   const isAdmin = role === "admin";
   const supabase = user ? await createClient() : null;
@@ -33,19 +34,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="app-frame min-h-screen bg-background md:min-h-0 md:fixed md:inset-0 md:overflow-hidden">
-      <Sidebar email={user?.email} role={role} groups={groups} canInvite={platform} switcher={isAdmin ? <OrgSwitcher /> : undefined} />
+      <Sidebar email={user?.email} avatarUrl={avatarUrl} role={role} groups={groups} canInvite={platform} switcher={isAdmin ? <OrgSwitcher /> : undefined} />
       {/* No `w-full` here: with the sidebar's left margin it made <main> wider than the viewport. */}
-      <div className="flex min-h-screen flex-col md:min-h-0 bg-background md:my-4 md:ml-[4.75rem] md:mr-4 md:h-[calc(100%-2rem)] md:overflow-hidden md:rounded-[28px] md:shadow-xl lg:ml-[4.75rem] lg:exp:ml-60">
-        <Topbar email={user?.email} groups={groups} />
+      <div className="flex min-h-screen flex-col bg-background max-md:transition-[margin] max-md:duration-300 max-md:ease-out max-md:[html[data-mobile-nav=open]_&]:ml-14 md:min-h-0 md:my-4 md:ml-[4.75rem] md:mr-4 md:h-[calc(100%-2rem)] md:overflow-hidden md:rounded-[28px] md:shadow-xl lg:ml-[4.75rem] lg:exp:ml-60">
+        <Topbar email={user?.email} avatarUrl={avatarUrl} groups={groups} />
         {/* On desktop only this region scrolls; the frame, sidebar and top bar stay put. */}
         <div className="flex min-h-0 flex-1 flex-col md:overflow-y-auto">
-          <main className="flex-1 px-4 pb-24 pt-6 md:px-8 md:pb-12 md:pt-8">
-            <div className="mx-auto max-w-6xl">{children}</div>
+          <main className="flex-1 px-4 pb-12 pt-6 md:px-8 md:pb-12 md:pt-8">
+            <div className="mx-auto max-w-6xl has-[.wide-page]:max-w-none">{children}</div>
           </main>
           <Footer />
         </div>
       </div>
-      <BottomNav />
     </div>
   );
 }

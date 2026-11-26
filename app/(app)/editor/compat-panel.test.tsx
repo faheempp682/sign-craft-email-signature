@@ -85,3 +85,33 @@ describe("CompatPanel categories", () => {
     expect(lintDoc(fixed).filter((i) => i.category === "accessibility")).toEqual([]);
   });
 });
+
+describe("issue row layout", () => {
+  const issue = (over: Record<string, unknown> = {}) =>
+    ({ id: "x", category: "dark", severity: "warning", message: "The text colour is almost black. See https://example.com/a/very/long/path/that/should/wrap/naturally/without/breaking?x=1", blockIndex: 0, fix: (d: SignatureDoc) => d, fixLabel: "Use #72767F (closest possible)", ...over }) as never;
+
+  it("puts the message beside the badge at full width and the buttons in their own row underneath", () => {
+    const onFix = vi.fn();
+    const onSelect = vi.fn();
+    render(<CompatPanel issues={[issue()]} onFix={onFix} onFixAll={vi.fn()} onSelect={onSelect} />);
+    const row = screen.getByTestId("issue-row");
+    const actions = within(row).getByTestId("issue-actions");
+    const message = within(row).getByText(/almost black/);
+    expect(message.className).toContain("flex-1");
+    expect(message.className).toContain("overflow-wrap:anywhere");
+    expect(actions.contains(message)).toBe(false); // buttons are not in the message's row
+    expect(within(row).getByText("Check")).toBeTruthy(); // severity badge stays visible
+    const fix = within(actions).getByRole("button", { name: "Use #72767F (closest possible)" });
+    expect(fix.className).toContain("whitespace-normal");
+    fireEvent.click(fix);
+    expect(onFix).toHaveBeenCalledTimes(1); // behaviour unchanged
+    fireEvent.click(within(actions).getByRole("button", { name: "Show" }));
+    expect(onSelect).toHaveBeenCalledWith(0);
+  });
+
+  it("shows no action row when a message has nothing to click", () => {
+    render(<CompatPanel issues={[issue({ blockIndex: undefined, fix: undefined, severity: "info" })]} onFix={vi.fn()} onFixAll={vi.fn()} onSelect={vi.fn()} />);
+    expect(screen.queryByTestId("issue-actions")).toBeNull();
+    expect(screen.getByText("Tip")).toBeTruthy();
+  });
+});

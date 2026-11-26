@@ -23,7 +23,7 @@ function SupportNote({ k }: { k: keyof BlockStyle }) {
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+export function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="space-y-3 border-b border-line px-4 py-4" aria-label={title}>
       <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">{title}</h3>
@@ -32,7 +32,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function Num({ label, value, onChange, min = 0, max = 100, step = 1, suffix = "px" }: { label: string; value: number | undefined; onChange: (v: number | undefined) => void; min?: number; max?: number; step?: number; suffix?: string }) {
+export function Num({ label, value, onChange, min = 0, max = 100, step = 1, suffix = "px" }: { label: string; value: number | undefined; onChange: (v: number | undefined) => void; min?: number; max?: number; step?: number; suffix?: string }) {
   return (
     <label className="flex flex-col gap-1">
       <span className={lab}>{label}</span>
@@ -57,7 +57,7 @@ function Num({ label, value, onChange, min = 0, max = 100, step = 1, suffix = "p
   );
 }
 
-function Color({ label, value, onChange, fallback = "#000000" }: { label: string; value: string | undefined; onChange: (v: string | undefined) => void; fallback?: string }) {
+export function Color({ label, value, onChange, fallback = "#000000" }: { label: string; value: string | undefined; onChange: (v: string | undefined) => void; fallback?: string }) {
   return (
     <div className="flex flex-col gap-1">
       <span className={lab}>{label}</span>
@@ -73,8 +73,8 @@ function Color({ label, value, onChange, fallback = "#000000" }: { label: string
 
 /* ---------- inspector ---------- */
 
-const TEXTY = new Set<Block["type"]>(["identity", "contact", "social", "text", "button", "disclaimer"]);
-const BOXED = new Set<Block["type"]>(["identity", "contact", "social", "text", "disclaimer", "avatar", "banner"]);
+const TEXTY = new Set<Block["type"]>(["identity", "contact", "social", "text", "button", "disclaimer", "icontext"]);
+const BOXED = new Set<Block["type"]>(["identity", "contact", "social", "text", "disclaimer", "avatar", "banner", "icontext"]);
 
 export function DesignInspector({
   block,
@@ -139,6 +139,12 @@ export function DesignInspector({
             <Num label="Width" value={block.width} min={100} max={600} onChange={(v) => v !== undefined && setBlock({ width: v })} />
             <Num label="Height" value={block.height} min={20} max={300} onChange={(v) => v !== undefined && setBlock({ height: v })} />
           </div>
+        </Section>
+      )}
+      {type === "icontext" && (
+        <Section title="Icon">
+          <Color label="Icon color" value={block.iconColor} fallback="#4F46E5" onChange={(v) => setBlock({ iconColor: v })} />
+          <p className="text-[11px] text-muted">{block.src ? "Your own icon is used as uploaded; the color applies to built-in icons." : "Icons sit on a colored circle. Outlook desktop shows a square."}</p>
         </Section>
       )}
       {type === "spacer" && (

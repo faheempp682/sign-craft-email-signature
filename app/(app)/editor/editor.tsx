@@ -10,6 +10,7 @@ import { renderToEmailHtml } from "@/lib/renderer/email-html";
 import { TEMPLATE_META } from "@/lib/templates";
 import { getPreset } from "@/lib/presets";
 import { BLOCK_LABEL, BLOCK_TYPES, FIELDS, cleanValue, createBlock, type BlockType, type FieldSpec } from "@/lib/editor/blocks";
+import { getBlock, patchNested, withEmptyColumnPlaceholders } from "@/lib/editor/row-ops";
 import { clearDraft, getStorage, loadDraft, saveDraft, type Draft } from "@/lib/editor/draft";
 import { pickFieldKey } from "@/lib/editor/preview-map";
 import { copyHtmlRich, downloadHtm } from "@/lib/export-client";
@@ -188,6 +189,7 @@ function Field({ spec, value, error, id, onChange, onUpload, onLibrary, crop, gi
 /** Crop settings for an image slot: a photo or logo is cropped square, a banner to its own shape. */
 function cropFor(block: Block): CropSpec | undefined {
   if (block.type === "avatar") return { aspect: block.height ? block.size / block.height : 1, shape: block.shape, purpose: "avatar" };
+  if (block.type === "icontext") return { aspect: 1, shape: "square", purpose: "avatar" };
   if (block.type === "banner") {
     const aspect = Number(block.width) / Number(block.height);
     return { aspect: Number.isFinite(aspect) && aspect > 0 ? aspect : 4, shape: "square", purpose: "banner" };
@@ -245,7 +247,7 @@ export function BlockFields({ id, index, block, errors, canUpload, gifEnabled, o
           {block.type === "social" ? (
             <SocialEditor block={block} index={index} errors={errors} onChange={(links) => onPatch({ links })} onDisplay={(display) => onPatch({ display })} />
           ) : block.type === "row" ? (
-            <p className="text-sm text-muted">A row of columns. Editing rows arrives in the Design view in a later update; it exports and previews as saved.</p>
+            <p className="text-sm text-muted">A row of columns. Edit its layout and the blocks inside it in the Design view.</p>
           ) : block.type !== "divider" && block.type !== "spacer" ? (
             FIELDS[block.type].map((spec) => (
               <Field
@@ -278,6 +280,18 @@ export function BlockFields({ id, index, block, errors, canUpload, gifEnabled, o
               />
             ))
           ) : null}
+          {block.type === "contact" && (
+            <div className="space-y-3 border-t border-line pt-4">
+              <p className="text-sm font-medium">Social links</p>
+              <SocialEditor
+                block={{ type: "social", links: block.social ?? [], display: block.socialDisplay }}
+                index={index}
+                errors={Object.fromEntries(Object.entries(errors).map(([k, v]) => [k.replace(`blocks.${index}.social.`, `blocks.${index}.links.`), v]))}
+                onChange={(links) => onPatch({ social: links.length ? links : undefined })}
+                onDisplay={(socialDisplay) => onPatch({ socialDisplay })}
+              />
+            </div>
+          )}
     </>
   );
 }
@@ -400,6 +414,12 @@ export function Editor({ initial, explicit, aiNotice = false, saved, canSave = f
   const [lastValid, setLastValid] = useState<Snapshot | null>(current);
   if (current && current !== lastValid) setLastValid(current);
   const snapshot = current ?? lastValid;
+  // The canvas shows a placeholder in empty row columns (they export nothing); export, save and lint keep using `current`.
+  const shown = useMemo<Snapshot | null>(() => {
+    if (!snapshot) return snapshot;
+    const parsed = withEmptyColumnPlaceholders(snapshot.parsed);
+    return parsed === snapshot.parsed ? snapshot : { ...snapshot, parsed, html: renderToEmailHtml(parsed) };
+  }, [snapshot]);
   // Lint only a fully valid document; while a field is mid-edit and invalid the panel says so instead.
   const issues = useMemo(() => (current ? lintDoc(current.parsed, assets) : null), [current, assets]);
 
@@ -662,7 +682,7 @@ export function Editor({ initial, explicit, aiNotice = false, saved, canSave = f
       <DesignWorkspace
         state={state}
         update={update}
-        snapshot={snapshot}
+        snapshot={shown!}
         valid={valid}
         client={client}
         setClient={setClient}
@@ -718,6 +738,26 @@ export function Editor({ initial, explicit, aiNotice = false, saved, canSave = f
             <GmailPush doc={valid && current ? current.parsed : null} returnTo="/editor" />
           </>
         }
+        renderNestedContent={(path) => {
+          const nb = getBlock(doc.blocks, path);
+          if (!nb) return null;
+          // Errors for a nested block are keyed blocks.<i>.columns.<c>.blocks.<k>...; remap them to the shape BlockFields expects.
+          const prefix = `blocks.${path[0]}.` + path.slice(1).map((n, j) => (j % 2 === 0 ? `columns.${n}` : `blocks.${n}`)).join(".") + ".";
+          const local: Errors = {};
+          for (const [k, v] of Object.entries(errors)) if (k.startsWith(prefix)) local[`blocks.0.${k.slice(prefix.length)}`] = v;
+          return (
+            <BlockFields
+              id={`${ids[path[0]]}-${path.slice(1).join("-")}`}
+              index={0}
+              block={nb}
+              errors={local}
+              canUpload={canUpload}
+              gifEnabled={gifEnabled}
+              onAsset={(url, info) => setAssets((a) => ({ ...a, [url]: info }))}
+              onPatch={(patch) => update((s) => patchNested(s, path, patch), `nested:${path.join(".")}:${Object.keys(patch).join(",")}`)}
+            />
+          );
+        }}
         renderContent={(i) => (
           <BlockFields
             id={ids[i]}
@@ -812,7 +852,7 @@ export function Editor({ initial, explicit, aiNotice = false, saved, canSave = f
               {dark ? "Switch to light mode" : "Switch to dark mode"}
             </button>
           </div>
-          <LivePreview snapshot={snapshot} dark={dark} client={client} selectedId={open} onPick={onPick} />
+          <LivePreview snapshot={shown!} dark={dark} client={client} selectedId={open} onPick={onPick} />
           <p className="border-t border-line px-4 py-2 text-xs text-muted">
             {valid ? "Click any text or image to edit it." : "Fix the highlighted fields. Showing last valid version."}
             {issues && <> <a href="#compat-h" className="font-medium text-accent underline underline-offset-4">Compatibility {scoreOf(issues)}/100</a></>}
@@ -844,19 +884,22 @@ function SocialEditor({ block, index, errors, onChange, onDisplay }: { block: Ex
         const err = errors[`blocks.${index}.links.${j}.url`];
         const id = `f-${index}-link-${j}`;
         return (
-          <div key={j} className="flex items-start gap-2">
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor={`${id}-n`} className="text-sm font-medium">Network</label>
-              <select id={`${id}-n`} className="field" value={l.network} onChange={(e) => set(j, { network: e.target.value as Link["network"] })}>
-                {SOCIAL_NETWORKS.map((n) => <option key={n}>{n}</option>)}
-              </select>
+          <div key={j} className="space-y-3 rounded-xl border border-black/10 p-3 dark:border-white/10">
+            <div className="flex items-start gap-2">
+              <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                <label htmlFor={`${id}-n`} className="text-sm font-medium">Network</label>
+                <select id={`${id}-n`} className="field w-full" value={l.network} onChange={(e) => set(j, { network: e.target.value as Link["network"] })}>
+                  {SOCIAL_NETWORKS.map((n) => <option key={n}>{n}</option>)}
+                </select>
+              </div>
+              <button className={`${iconBtn} mt-6 shrink-0`} aria-label={`Remove ${l.network} link`} onClick={() => onChange(links.filter((_, k) => k !== j))}>{TRASH}</button>
             </div>
-            <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <div className="flex min-w-0 flex-col gap-1.5">
               <label htmlFor={id} className="text-sm font-medium">URL</label>
               <input id={id} className="field w-full" value={l.url} aria-invalid={!!err} aria-describedby={err ? `${id}-err` : undefined} onChange={(e) => set(j, { url: e.target.value })} />
               {err && <p id={`${id}-err`} className="text-xs text-red-600 dark:text-red-400">{err}</p>}
             </div>
-            <div className="mt-6 flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
               {l.icon && <img src={l.icon} alt="" width={28} height={28} className="h-7 w-7 rounded object-cover" />}
               <label className="btn cursor-pointer whitespace-nowrap" title="Use your own icon image for this link">
                 {l.icon ? "Change icon" : "Upload icon"}
@@ -869,7 +912,6 @@ function SocialEditor({ block, index, errors, onChange, onDisplay }: { block: Ex
               </label>
               {l.icon && <button className="btn" onClick={() => set(j, { icon: undefined })}>Reset</button>}
             </div>
-            <button className={`${iconBtn} mt-6`} aria-label={`Remove ${l.network} link`} onClick={() => onChange(links.filter((_, k) => k !== j))}>{TRASH}</button>
           </div>
         );
       })}

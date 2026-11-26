@@ -138,5 +138,6 @@ export function previewDocument(html: string, client: ClientId, dark: boolean): 
   const c = CLIENTS[client];
   const t = dark ? c.dark : c.light;
   const margin = c.width ? 14 : 24;
-  return `<!doctype html><html><body style="margin:${margin}px;background:${t.bg};color:${t.ink};font-family:${c.font};font-size:${c.size};">${clientHtml(html, client, dark)}</body></html>`;
+  const fit = c.width ? "<style>img{max-width:100%!important;height:auto!important}</style>" : "";
+  return `<!doctype html><html><head>${fit}</head><body style="margin:${margin}px;background:${t.bg};color:${t.ink};font-family:${c.font};font-size:${c.size};">${clientHtml(html, client, dark)}</body></html>`;
 }

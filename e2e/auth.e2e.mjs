@@ -189,7 +189,9 @@ test("invited member journey: sign up, confirm email, profile and role, sign in,
   await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 30000 });
   assert.equal(new URL(page.url()).origin, new URL(BASE).origin);
   assert.equal(new URL(page.url()).pathname, "/create");
-  assert.ok(await page.getByRole("button", { name: `Log out ${email}` }).first().isVisible(), "the signed-in email is shown next to Log out");
+  await page.getByLabel("Account menu").click();
+  assert.ok(await page.getByText(email, { exact: true }).first().isVisible(), "the signed-in email is shown in the account menu");
+  assert.ok(await page.getByRole("button", { name: "Log out" }).first().isVisible(), "Log out is in the account menu");
 
   // Session survives a reload and works for the API as the browser.
   await page.reload();
@@ -206,7 +208,8 @@ test("invited member journey: sign up, confirm email, profile and role, sign in,
   // Logging in while logged in just goes to the app; logging out ends the session everywhere.
   await page.goto(`${BASE}/login`);
   assert.equal(new URL(page.url()).pathname, "/create");
-  await page.getByRole("button", { name: `Log out ${email}` }).first().click();
+  if (!(await page.getByRole("button", { name: "Log out" }).first().isVisible())) await page.getByLabel("Account menu").click();
+  await page.getByRole("button", { name: "Log out" }).first().click();
   await page.waitForURL(/\/login/, { timeout: 30000 });
   for (const path of ["/create", "/editor", "/admin"]) {
     await page.goto(`${BASE}${path}`);

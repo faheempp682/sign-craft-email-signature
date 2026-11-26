@@ -295,7 +295,7 @@ export function AiChat() {
   const empty = messages.length === 0;
 
   return (
-    <div className="mx-auto flex max-w-6xl gap-6">
+    <div className="flex w-full gap-8">
       {/* History */}
       <aside className={cn("w-full shrink-0 lg:block lg:w-64", historyOpen ? "block" : "hidden")} aria-label="Chat history">
         <div className="lg:sticky lg:top-2">

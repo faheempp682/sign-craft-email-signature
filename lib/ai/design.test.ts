@@ -82,7 +82,7 @@ describe("sanitizeDoc (the model cannot know real URLs)", () => {
     ]);
     const out = sanitizeDoc(doc, "anything");
     for (const b of out.blocks) {
-      expect("src" in b && new URL(b.src).hostname).toBe("placehold.co");
+      expect("src" in b && b.src && new URL(b.src).hostname).toBe("placehold.co");
     }
     expect(out.blocks[1]).toMatchObject({ src: "https://placehold.co/300x90.png" });
   });

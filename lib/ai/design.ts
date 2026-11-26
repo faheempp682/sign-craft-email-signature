@@ -92,21 +92,31 @@ const placeholder = (w: number, h: number) => `https://placehold.co/${w}x${h}.pn
  */
 export function sanitizeDoc(doc: SignatureDoc, userPrompt: string): SignatureDoc {
   const prompt = userPrompt.toLowerCase();
-  const blocks: Block[] = [];
-  for (const b of doc.blocks) {
-    if (b.type === "avatar") {
-      blocks.push({ ...b, src: hostOf(b.src) === "placehold.co" ? b.src : placeholder(b.size * 2, b.size * 2) });
-    } else if (b.type === "banner") {
-      const href = b.href && prompt.includes(b.href.toLowerCase().replace(/\/$/, "")) ? b.href : undefined;
-      blocks.push({ ...b, src: hostOf(b.src) === "placehold.co" ? b.src : placeholder(b.width, b.height), href });
-    } else if (b.type === "social") {
-      const links = b.links.filter((l) => matchesHost(l.url, NETWORK_HOSTS[l.network]));
-      if (links.length) blocks.push({ ...b, links });
-    } else {
-      blocks.push(b);
+  const clean = (list: Block[]): Block[] => {
+    const blocks: Block[] = [];
+    for (const b of list) {
+      if (b.type === "avatar") {
+        blocks.push({ ...b, src: hostOf(b.src) === "placehold.co" ? b.src : placeholder(b.size * 2, b.size * 2) });
+      } else if (b.type === "banner") {
+        const href = b.href && prompt.includes(b.href.toLowerCase().replace(/\/$/, "")) ? b.href : undefined;
+        blocks.push({ ...b, src: hostOf(b.src) === "placehold.co" ? b.src : placeholder(b.width, b.height), href });
+      } else if (b.type === "icontext") {
+        // Never let the model point an icon at an arbitrary image or link: built-in icons only, link only if the user typed it.
+        const { src: _src, href, ...rest } = b;
+        void _src;
+        blocks.push(href && prompt.includes(href.toLowerCase().replace(/\/$/, "")) ? { ...rest, href } : rest);
+      } else if (b.type === "social") {
+        const links = b.links.filter((l) => matchesHost(l.url, NETWORK_HOSTS[l.network]));
+        if (links.length) blocks.push({ ...b, links });
+      } else if (b.type === "row") {
+        blocks.push({ ...b, columns: b.columns.map((c) => ({ ...c, blocks: clean(c.blocks) })) });
+      } else {
+        blocks.push(b);
+      }
     }
-  }
-  return { ...doc, blocks };
+    return blocks;
+  };
+  return { ...doc, blocks: clean(doc.blocks) };
 }
 
 export const formatIssues = (error: z.ZodError) =>

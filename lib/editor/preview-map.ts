@@ -92,3 +92,43 @@ export function pickFieldKey(block: Block, text: string, offset = 0): string | u
   const under = hits.find((h) => offset >= h.start && offset <= h.end);
   return (under ?? [...hits].sort((a, b) => b.end - b.start - (a.end - a.start))[0]).key;
 }
+
+/**
+ * Click-to-edit for blocks inside rows & columns. Like `mapBlockElements` this matches the preview DOM against what the
+ * unchanged renderer produces for each nested block, so the exporter is never touched.
+ * Returns element -> path from its top-level row (`[col, index]`, or `[col, index, col, index]` for rows in rows).
+ * Blocks that cannot be matched simply stay unmapped and a click selects the row, exactly as before.
+ */
+export function mapNestedElements(root: ParentNode, doc: SignatureDoc, ids: string[], top: Map<Element, string>): Map<Element, number[]> {
+  const owner = (root as Node).ownerDocument ?? document;
+  const normalise = (html: string) => {
+    const t = owner.createElement("template");
+    t.innerHTML = html;
+    return t.innerHTML;
+  };
+  const out = new Map<Element, number[]>();
+  const used = new Set<Element>();
+
+  const walk = (scope: Element, row: Extract<Block, { type: "row" }>, prefix: number[]) => {
+    const all = Array.from(scope.querySelectorAll("*"));
+    row.columns.forEach((col, ci) =>
+      col.blocks.forEach((b, k) => {
+        const html = renderBlockForDoc(b, doc);
+        if (!html) return;
+        const key = normalise(html);
+        const el = all.find((e) => !used.has(e) && !out.has(e) && e.innerHTML === key);
+        if (!el) return;
+        used.add(el);
+        const path = [...prefix, ci, k];
+        out.set(el, path);
+        if (b.type === "row") walk(el, b, path);
+      }),
+    );
+  };
+
+  doc.blocks.forEach((b, i) => {
+    if (b.type !== "row" || !ids[i]) return;
+    for (const [el, id] of top) if (id === ids[i]) walk(el, b, []);
+  });
+  return out;
+}

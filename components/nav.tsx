@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import type { Icon as SolarIcon } from "@solar-icons/react/lib/types";
 import { SidebarMinimalisticIcon } from "@solar-icons/react/linear/sidebar-minimalistic";
@@ -40,6 +40,19 @@ const ICONS: Record<IconKey, SolarIcon> = {
   features: SliderVerticalIcon, limits: Tuning2Icon, disclaimers: DiplomaVerifiedIcon, plans: TagIcon, agency: Buildings2Icon,
 };
 
+const MOBILE_NAV_EVENT = "mobile-nav";
+/** Phones: the header button and the icon rail share one open/closed state. */
+function useMobileNav() {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const on = (e: Event) => setOpen(!!(e as CustomEvent<boolean>).detail);
+    window.addEventListener(MOBILE_NAV_EVENT, on);
+    return () => window.removeEventListener(MOBILE_NAV_EVENT, on);
+  }, []);
+  const set = (v: boolean) => { setOpen(v); document.documentElement.dataset.mobileNav = v ? "open" : "closed"; window.dispatchEvent(new CustomEvent(MOBILE_NAV_EVENT, { detail: v })); };
+  return [open, set] as const;
+}
+
 /** What a screen reader hears for a link with a count. */
 export const navLabel = (label: string, badge?: number) => (badge ? `${label}, ${badge} need attention` : label);
 
@@ -48,6 +61,15 @@ export function Logo({ className }: { className?: string }) {
     // eslint-disable-next-line @next/next/no-img-element
     <img src="/icon-logo.png" alt="" aria-hidden="true" className={cn("size-10 shrink-0 object-contain", className)} />
   );
+}
+
+/** The person's picture, or their first letter when they have none. */
+function Avatar({ url, email, className }: { url?: string | null; email?: string | null; className: string }) {
+  if (url) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={url} alt="" aria-hidden="true" className={cn("shrink-0 rounded-full object-cover", className)} />;
+  }
+  return <span aria-hidden="true" className={cn("grid shrink-0 place-items-center rounded-full text-sm font-semibold uppercase", className)}>{(email ?? "S")[0]}</span>;
 }
 
 function Badge({ n }: { n: number }) {
@@ -59,10 +81,12 @@ function Badge({ n }: { n: number }) {
 }
 
 /** The one navigation menu: grouped, labelled on large screens, icons only on tablets. Phones use BottomNav. */
-export function Sidebar({ email, role, groups, switcher, canInvite }: { email?: string | null; role?: string | null; groups: NavGroup[]; switcher?: React.ReactNode; canInvite?: boolean }) {
+export function Sidebar({ email, avatarUrl, role, groups, switcher, canInvite }: { email?: string | null; avatarUrl?: string | null; role?: string | null; groups: NavGroup[]; switcher?: React.ReactNode; canInvite?: boolean }) {
   const path = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   useEffect(() => setCollapsed(document.documentElement.dataset.sidebar === "collapsed"), []);
+  const [mOpen, setMOpen] = useMobileNav();
+  useEffect(() => setMOpen(false), [path]); // eslint-disable-line react-hooks/exhaustive-deps
   const toggle = () => {
     const next = !collapsed;
     setCollapsed(next);
@@ -91,10 +115,11 @@ export function Sidebar({ email, role, groups, switcher, canInvite }: { email?: 
     );
   };
   return (
-    <aside className="fixed inset-y-0 left-0 z-20 hidden w-[4.75rem] flex-col px-3 py-5 text-white md:flex lg:exp:w-60" aria-label="Sidebar">
+    <>
+    <aside data-open={mOpen} className="group/side fixed inset-y-0 left-0 z-20 flex w-14 max-md:-translate-x-full max-md:transition-[transform,visibility] max-md:duration-300 max-md:ease-out max-md:data-[open=true]:translate-x-0 max-md:data-[open=false]:invisible flex-col bg-[#171e2b] px-2 py-4 text-white md:w-[4.75rem] md:bg-transparent md:px-3 md:py-5 lg:exp:w-60" aria-label="Sidebar">
       <div className="flex flex-col items-center gap-2 lg:exp:flex-row lg:exp:justify-between">
         <Link href="/create" aria-label="SignCraft home" className="flex min-w-0 items-center justify-center">
-          <Logo className="size-11 lg:exp:hidden" />
+          <Logo className="size-9 md:size-11 lg:exp:hidden" />
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/sig-craft-email-signatures-logo-white.png" alt="" aria-hidden="true" className="hidden h-14 w-auto max-w-full object-contain object-left lg:exp:block" />
         </Link>
@@ -114,11 +139,9 @@ export function Sidebar({ email, role, groups, switcher, canInvite }: { email?: 
         ))}
       </nav>
 
-      <div className="mt-4 rounded-2xl bg-white/15 p-2 backdrop-blur lg:exp:p-3">
+      <div className="mt-4 rounded-2xl bg-white/15 p-1 backdrop-blur md:p-2 lg:exp:p-3">
         <div className="flex items-center justify-center gap-3 lg:exp:justify-start">
-          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#ddb3a3] text-sm font-semibold uppercase text-[#171e2b]" aria-hidden="true">
-            {(email ?? "S")[0]}
-          </span>
+          <Avatar url={avatarUrl} email={email} className="size-9 bg-[#ddb3a3] text-[#171e2b]" />
           <div className="hidden min-w-0 lg:exp:block">
             <p className="truncate text-sm font-medium" title={email ?? undefined}>{email ?? "Guest"}</p>
             <p className="text-xs capitalize text-white/70">{role ?? "visitor"}</p>
@@ -132,35 +155,49 @@ export function Sidebar({ email, role, groups, switcher, canInvite }: { email?: 
           </Link>
         )}
         {email && canInvite && <InviteDialog />}
-        {email && (
-          <Link href="/settings" aria-current={path === "/settings" ? "page" : undefined} className="mt-2 flex h-9 w-full items-center justify-center gap-2 rounded-full text-sm font-medium text-white/90 transition-colors hover:bg-white/15">
-            <UserRoundedIcon size={17} />
-            <span className="hidden lg:exp:inline">Account settings</span>
-            <span className="sr-only lg:exp:hidden">Account settings</span>
-          </Link>
-        )}
-        {email && (
-          <form action={signOut} className="mt-2">
-            <button type="submit" aria-label={`Log out ${email}`} title="Log out" className="flex h-9 w-full cursor-pointer items-center justify-center gap-2 rounded-full border border-white/40 text-sm font-medium text-white transition-colors hover:bg-white/15">
-              <LogoutIcon size={17} />
-              <span className="hidden lg:exp:inline">Log out</span>
-            </button>
-          </form>
-        )}
       </div>
     </aside>
+    </>
   );
 }
 
 /** Where you are on the left, the main action and the account menu on the right. Phones get every other link in the account menu. */
-export function Topbar({ email, groups }: { email?: string | null; groups: NavGroup[] }) {
+export function Topbar({ email, avatarUrl, groups }: { email?: string | null; avatarUrl?: string | null; groups: NavGroup[] }) {
   const path = usePathname();
+  const [navOpen, setNavOpen] = useMobileNav();
   const here = path === "/settings" ? { group: "Account", link: { href: "/settings", label: "Settings", icon: "mine" as const } } : currentLink(groups, path);
+  const menu = useRef<HTMLDetailsElement>(null);
+  // The account menu closes on a click outside it, on Escape, and when the page changes.
+  useEffect(() => {
+    const el = menu.current;
+    if (el) el.open = false;
+  }, [path]);
+  useEffect(() => {
+    const close = (e: Event) => {
+      const el = menu.current;
+      if (el?.open && !(e.target instanceof Node && el.contains(e.target))) el.open = false;
+    };
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && menu.current?.open) {
+        menu.current.open = false;
+        menu.current.querySelector("summary")?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", esc);
+    };
+  }, []);
   const mainHrefs = new Set(MAIN_LINKS.map((l) => l.href));
   const more = groups.map((g) => ({ ...g, links: g.links.filter((l) => !mainHrefs.has(l.href)) })).filter((g) => g.links.length);
   return (
     <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-3 bg-background/90 px-4 backdrop-blur md:rounded-t-[28px] md:px-8">
-      <div className="min-w-0">
+      <button type="button" onClick={() => setNavOpen(!navOpen)} aria-expanded={navOpen} aria-label={navOpen ? "Close menu" : "Open menu"} className="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-xl text-foreground transition-colors hover:bg-secondary md:hidden">
+        <SidebarMinimalisticIcon size={22} />
+      </button>
+      <div className="min-w-0 flex-1">
         <p className="text-xs font-medium text-muted-foreground">{here?.group ?? "SignCraft"}</p>
         <p className="truncate text-lg font-semibold leading-tight tracking-tight">{here?.link.label ?? "Dashboard"}</p>
       </div>
@@ -178,9 +215,9 @@ export function Topbar({ email, groups }: { email?: string | null; groups: NavGr
             <LoginIcon size={18} /> Sign in
           </Link>
         )}
-        {email && <details className="relative">
-          <summary aria-label="Account menu" className="grid size-10 cursor-pointer list-none place-items-center rounded-full bg-brand text-sm font-semibold uppercase text-primary-foreground [&::-webkit-details-marker]:hidden">
-            {(email ?? "S")[0]}
+        {email && <details ref={menu} className="relative">
+          <summary aria-label="Account menu" className="block size-10 cursor-pointer list-none rounded-full [&::-webkit-details-marker]:hidden">
+            <Avatar url={avatarUrl} email={email} className="size-10 bg-brand text-primary-foreground" />
           </summary>
           <div className="absolute right-0 z-30 mt-2 max-h-[80vh] w-64 overflow-y-auto rounded-2xl border border-border bg-card p-2 shadow-xl">
             <p className="truncate px-3 py-2 text-sm font-medium" title={email ?? undefined}>{email ?? "Personal team"}</p>

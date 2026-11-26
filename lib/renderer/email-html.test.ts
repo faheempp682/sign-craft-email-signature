@@ -61,8 +61,11 @@ describe("security", () => {
   });
 
   it("does not emit an unsafe website href", () => {
-    const doc = SignatureDocSchema.parse({ ...classic, blocks: [{ type: "contact", website: "javascript:alert(1)" }] });
-    expect(renderToEmailHtml(doc)).not.toMatch(/href="javascript:/i);
+    // The schema now refuses it outright; a stored legacy doc that bypasses parsing still renders no unsafe href.
+    expect(SignatureDocSchema.safeParse({ ...classic, blocks: [{ type: "contact", website: "javascript:alert(1)" }] }).success).toBe(false);
+    const legacy = { ...classic, blocks: [{ type: "contact", website: "javascript:alert(1)" }] } as unknown as SignatureDoc;
+    expect(renderToEmailHtml(legacy)).not.toMatch(/href="javascript:/i);
+    expect(safeHttpsUrl("www.@modernhome.co.uk")).toBeNull();
   });
 });
 

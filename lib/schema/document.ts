@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidWebsite } from "./website";
 
 /** Only https image/link URLs are allowed (email clients block http/data/js). */
 const httpsUrl = z
@@ -60,19 +61,29 @@ const IdentityBase = z.object({
   company: z.string().max(100).optional(),
 });
 
+const SocialLinks = z
+  .array(z.object({ network: z.enum(SOCIAL_NETWORKS), url: httpsUrl, /** The user's own icon image for this link; absent = the built-in network icon. */ icon: httpsUrl.optional() }))
+  .max(8);
+
 const ContactBase = z.object({
   type: z.literal("contact"),
   phone: z.string().max(40).optional(),
   email: z.string().email().optional(),
-  website: z.string().max(200).optional(),
+  /** Where the website link goes (and, unless websiteLabel is set, what it shows). Must be a real domain or URL. */
+  website: z.string().max(200).refine(isValidWebsite, "Enter a valid website, like example.com or https://example.com/page").optional(),
+  /** Friendly text shown instead of the web address. Absent = the address itself. */
+  websiteLabel: z.string().max(100).optional(),
   address: z.string().max(200).optional(),
+  /** Optional link for the address (e.g. a map). Absent = plain text. */
+  addressHref: httpsUrl.optional(),
+  /** Social links shown under the contact lines. Absent/empty = none. */
+  social: SocialLinks.optional(),
+  socialDisplay: z.enum(SOCIAL_DISPLAYS).optional(),
 });
 
 const SocialBase = z.object({
   type: z.literal("social"),
-  links: z
-    .array(z.object({ network: z.enum(SOCIAL_NETWORKS), url: httpsUrl, /** The user's own icon image for this link; absent = the built-in network icon. */ icon: httpsUrl.optional() }))
-    .max(8),
+  links: SocialLinks,
   /** How the links show: icon only, icon with the network name, or the name only. Absent = the template's own look. */
   display: z.enum(SOCIAL_DISPLAYS).optional(),
 });
@@ -157,6 +168,8 @@ export const TextBlock = z.object({
   type: z.literal("text"),
   text: z.string().max(600),
   variant: z.enum(["body", "heading"]).default("body"),
+  /** Optional link: the whole text becomes a clickable https link. */
+  href: httpsUrl.optional(),
   ...Common,
 });
 
@@ -164,6 +177,29 @@ export const ButtonBlock = z.object({
   type: z.literal("button"),
   label: z.string().min(1).max(40),
   href: httpsUrl,
+  ...Common,
+});
+
+/** Built-in icons for the Icon + text block (hosted PNG glyphs, see scripts/build-email-icons.mjs). */
+export const ICON_NAMES = ["phone", "mail", "globe", "pin", "calendar", "clock", "user", "briefcase", "link", "star", "check", "chat"] as const;
+
+/** https, mailto: and tel: links only; email clients block anything else. */
+const linkUrl = z
+  .string()
+  .max(300)
+  .refine((u) => /^(https:\/\/|mailto:|tel:)\S+$/i.test(u), "Must start with https://, mailto: or tel:");
+
+export const IconTextBlock = z.object({
+  type: z.literal("icontext"),
+  icon: z.enum(ICON_NAMES).default("phone"),
+  /** Your own icon image instead of a built-in one. */
+  src: httpsUrl.optional(),
+  text: z.string().min(1).max(200),
+  href: linkUrl.optional(),
+  /** Icon edge in px. */
+  size: z.number().int().min(12).max(48).default(20),
+  /** Badge colour for built-in icons. Absent = the theme's primary colour. */
+  iconColor: hexColor.optional(),
   ...Common,
 });
 
@@ -192,6 +228,7 @@ export const LeafBlockSchema = z.discriminatedUnion("type", [
   TextBlock,
   ButtonBlock,
   SpacerBlock,
+  IconTextBlock,
 ]);
 
 /* ---------- rows & columns (flow layout; rendered as nested tables) ---------- */

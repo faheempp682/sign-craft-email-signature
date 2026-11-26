@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/team/health" }));
@@ -48,9 +48,10 @@ describe("sidebar", () => {
 });
 
 describe("log out", () => {
-  it("is a visible button in the sidebar and in the account menu", () => {
+  it("lives in the account menu, not the sidebar", () => {
     render(<Sidebar email="a@b.c" role="admin" groups={adminMenu()} />);
-    expect(screen.getByRole("button", { name: "Log out a@b.c" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Log out/ })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Account settings" })).toBeNull();
     cleanup();
     render(<Topbar email="a@b.c" groups={adminMenu()} />);
     expect(screen.getByRole("button", { name: "Log out" })).toBeTruthy();
@@ -59,6 +60,21 @@ describe("log out", () => {
   it("is hidden when nobody is signed in", () => {
     render(<Sidebar groups={buildMenu({ role: null, platform: false, flags: {} })} />);
     expect(screen.queryByRole("button", { name: /Log out/ })).toBeNull();
+  });
+});
+
+describe("account menu", () => {
+  it("closes on a click outside and on Escape", () => {
+    const { container } = render(<Topbar email="a@b.c" groups={adminMenu()} />);
+    const menu = container.querySelector("details") as HTMLDetailsElement;
+    menu.open = true;
+    fireEvent.pointerDown(menu.querySelector("summary") as Element);
+    expect(menu.open).toBe(true);
+    fireEvent.pointerDown(document.body);
+    expect(menu.open).toBe(false);
+    menu.open = true;
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(menu.open).toBe(false);
   });
 });
 
@@ -90,6 +106,6 @@ describe("signed out", () => {
     cleanup();
     render(<Topbar groups={groups} />);
     expect(screen.getByRole("link", { name: /Sign in/ })).toBeTruthy();
-    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Account menu|Log out/ })).toBeNull();
   });
 });

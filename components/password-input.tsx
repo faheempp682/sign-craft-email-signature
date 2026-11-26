@@ -9,7 +9,7 @@ export function PasswordInput({ className = "field", ...props }: Props) {
   const [visible, setVisible] = useState(false);
   return (
     <div className="relative">
-      <input {...props} type={visible ? "text" : "password"} className={`${className} pr-11`} />
+      <input {...props} type={visible ? "text" : "password"} className={`${className} w-full pr-11`} />
       <button
         type="button"
         onClick={() => setVisible((v) => !v)}

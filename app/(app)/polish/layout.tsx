@@ -10,9 +10,9 @@ export default async function PolishLayout({ children }: { children: React.React
     <>
       <header className="mb-8">
         <p className="eyebrow mb-2">Designer polish</p>
-        <h1 className="text-3xl font-semibold tracking-tight">AI draft, Kimp designer polish.</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">AI draft, SignCraft designer polish.</h1>
         <p className="mt-3 max-w-2xl text-muted">
-          Send a saved signature to a Kimp designer with a note. They work on a copy, you compare the two side by side, and nothing changes in your library until you say so.
+          Send a saved signature to a SignCraft designer with a note. They work on a copy, you compare the two side by side, and nothing changes in your library until you say so.
         </p>
       </header>
       <PolishTabs isDesigner={role !== null && atLeast(role, "designer")} />

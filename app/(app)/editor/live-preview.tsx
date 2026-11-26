@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { SignatureDoc } from "@/lib/schema/document";
-import { mapBlockElements } from "@/lib/editor/preview-map";
+import { mapBlockElements, mapNestedElements } from "@/lib/editor/preview-map";
+import { PALETTE_MIME, type PaletteDrop } from "@/lib/editor/palette-drag";
 import { CLIENTS, clientHtml, type ClientId } from "@/lib/preview-clients";
 import { ClientBadge } from "@/app/(app)/preview/render-ui";
 
 export type Snapshot = { html: string; parsed: SignatureDoc; ids: string[] };
-export type PickHint = { text: string; offset: number; shift?: boolean };
+export type PickHint = { text: string; offset: number; shift?: boolean; /** Set when the click landed on a block inside a row: [col, index, ...] from that row. */ nested?: number[] };
 /** Where each block sits inside the preview document (iframe pixels), used by the design canvas for handles and guides. */
 export type BlockRect = { x: number; y: number; w: number; h: number };
 export type Layout = { rects: Record<string, BlockRect>; width: number; height: number };
@@ -19,6 +20,8 @@ body{margin:24px}
 [data-block]{cursor:pointer;border-radius:4px}
 [data-block]:hover{outline:1px dashed #818cf8;outline-offset:-1px}
 [data-selected]{outline:2px solid #4f46e5 !important;outline-offset:-2px}
+[data-drop=before]{box-shadow:inset 0 4px 0 #4f46e5 !important}
+[data-drop=after]{box-shadow:inset 0 -4px 0 #4f46e5 !important}
 </style></head><body></body></html>`;
 
 export function LivePreview({
@@ -31,6 +34,7 @@ export function LivePreview({
   onDoubleClick,
   onLayout,
   onContextMenu,
+  onPaletteDrop,
   height = 460,
   bare = false,
 }: {
@@ -45,6 +49,8 @@ export function LivePreview({
   onLayout?: (layout: Layout) => void;
   /** Right-click: the block under the pointer (or null) and the position in preview-document pixels. */
   onContextMenu?: (id: string | null, x: number, y: number) => void;
+  /** An element dragged in from the "Add element" palette was dropped on the preview. */
+  onPaletteDrop?: (payload: string, target: PaletteDrop) => void;
   height?: number;
   /** Render just the iframe (no client badge or padded frame): the design canvas draws its own workspace. */
   bare?: boolean;
@@ -52,11 +58,14 @@ export function LivePreview({
   const frame = useRef<HTMLIFrameElement>(null);
   const [loads, setLoads] = useState(0); // bumps whenever the iframe document (re)loads
   const blockMap = useRef<Map<Element, string>>(new Map());
+  const nestedMap = useRef<Map<Element, number[]>>(new Map());
   const pick = useRef(onPick);
   const dbl = useRef(onDoubleClick);
   const layoutCb = useRef(onLayout);
   const ctxCb = useRef(onContextMenu);
+  const dropCb = useRef(onPaletteDrop);
   useEffect(() => {
+    dropCb.current = onPaletteDrop;
     pick.current = onPick;
     dbl.current = onDoubleClick;
     layoutCb.current = onLayout;
@@ -72,11 +81,14 @@ export function LivePreview({
       e.preventDefault();
       const target = e.target as Element | null;
       let el: Element | null = target;
+      let nested: number[] | undefined;
       while (el && el !== doc.body) {
+        nested ??= nestedMap.current.get(el);
         const id = blockMap.current.get(el);
         if (id) {
           const hint = hintAt(doc, e, target);
-          pick.current(id, hint ? { ...hint, shift: e.shiftKey || e.metaKey || e.ctrlKey } : { text: "", offset: 0, shift: e.shiftKey || e.metaKey || e.ctrlKey });
+          const shift = e.shiftKey || e.metaKey || e.ctrlKey;
+          pick.current(id, { ...(hint ?? { text: "", offset: 0 }), shift, ...(nested ? { nested } : {}) });
           return;
         }
         el = el.parentElement;
@@ -115,12 +127,58 @@ export function LivePreview({
       window.dispatchEvent(copy);
       if (copy.defaultPrevented) e.preventDefault();
     };
+    // Palette drag and drop: the block (or empty-column placeholder) under the pointer and which half of it.
+    let lit: Element | null = null;
+    const unlight = () => { lit?.removeAttribute("data-drop"); lit = null; };
+    const locate = (e: DragEvent) => {
+      let el: Element | null = e.target as Element | null;
+      let nestedEl: Element | undefined;
+      let nested: number[] | undefined;
+      while (el && el !== doc.body) {
+        if (!nested) {
+          const n = nestedMap.current.get(el);
+          if (n) { nested = n; nestedEl = el; }
+        }
+        const id = blockMap.current.get(el);
+        if (id) {
+          const hit = nestedEl ?? el;
+          const r = hit.getBoundingClientRect();
+          return { id, nested, hit, after: e.clientY > r.top + r.height / 2 };
+        }
+        el = el.parentElement;
+      }
+      return null;
+    };
+    const isPalette = (e: DragEvent) => !!dropCb.current && Array.from(e.dataTransfer?.types ?? []).includes(PALETTE_MIME);
+    const onDragOver = (e: DragEvent) => {
+      if (!isPalette(e)) return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+      const t = locate(e);
+      if (!t) return unlight();
+      if (lit !== t.hit) { unlight(); lit = t.hit; }
+      t.hit.setAttribute("data-drop", t.after ? "after" : "before");
+    };
+    const onDrop = (e: DragEvent) => {
+      if (!isPalette(e)) return;
+      e.preventDefault();
+      const payload = e.dataTransfer?.getData(PALETTE_MIME) ?? "";
+      const t = locate(e);
+      unlight();
+      if (payload) dropCb.current?.(payload, t ? { id: t.id, nested: t.nested, after: t.after } : { id: null, after: true });
+    };
+    doc.addEventListener("dragover", onDragOver);
+    doc.addEventListener("dragleave", unlight);
+    doc.addEventListener("drop", onDrop);
     doc.addEventListener("click", onClick);
     doc.addEventListener("dblclick", onDbl);
     doc.addEventListener("contextmenu", onCtx);
     doc.addEventListener("keydown", forward);
     doc.addEventListener("keyup", forward);
     return () => {
+      doc.removeEventListener("dragover", onDragOver);
+      doc.removeEventListener("dragleave", unlight);
+      doc.removeEventListener("drop", onDrop);
       doc.removeEventListener("click", onClick);
       doc.removeEventListener("dblclick", onDbl);
       doc.removeEventListener("contextmenu", onCtx);
@@ -155,11 +213,20 @@ export function LivePreview({
     const c = CLIENTS[client];
     const t = dark ? c.dark : c.light;
     doc.body.style.cssText = `margin:${c.width ? 14 : 24}px;background:${t.bg};color:${t.ink};font-family:${c.font};font-size:${c.size};`;
+    // Narrow panes (mobile): scale wide images down so they can't run past the right margin, as real mobile mail does.
+    let fitStyle = doc.getElementById("preview-fit") as HTMLStyleElement | null;
+    if (!fitStyle) {
+      fitStyle = doc.createElement("style");
+      fitStyle.id = "preview-fit";
+      doc.head.appendChild(fitStyle);
+    }
+    fitStyle.textContent = c.width ? "img{max-width:100%!important;height:auto!important}" : "";
     // Client simulations (Outlook Word rules, Gmail clean-up, dark mode) change styles only, never the table structure the click map relies on.
     doc.body.innerHTML = clientHtml(snapshot.html, client, dark);
     fit();
     const map = mapBlockElements(doc.body, snapshot.parsed, snapshot.ids);
     blockMap.current = map;
+    nestedMap.current = mapNestedElements(doc.body, snapshot.parsed, snapshot.ids, map);
     const chosen = new Set(selectedIds ?? (selectedId ? [selectedId] : []));
     const measure = () => {
       const rects: Record<string, BlockRect> = {};

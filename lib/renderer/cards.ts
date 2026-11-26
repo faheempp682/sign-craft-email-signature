@@ -1,7 +1,7 @@
 import { applyBlockStyle } from "./block-style";
 import type { Block, SignatureDoc, Theme } from "@/lib/schema/document";
 import { composeSkin } from "./studio";
-import { GAP, NETWORK_LABEL, TABLE_ATTRS, esc, fontStack, renderBlock, safeHttpsUrl, socialDisplay, socialIconUrl, telHref } from "./shared";
+import { GAP, NETWORK_LABEL, contactSocial, TABLE_ATTRS, esc, fontStack, renderBlock, safeHttpsUrl, socialDisplay, socialIconUrl, telHref } from "./shared";
 
 /**
  * Designed ("card") templates. Same rules as the base layouts: nested tables, inline styles, bgcolor + background-color,
@@ -84,10 +84,13 @@ export function items(b: B<"contact">, color: string, linkColor = color): Item[]
   if (b.email) out.push({ k: "email", html: a(`mailto:${b.email}`, esc(b.email), color) });
   if (b.website) {
     const h = safeHttpsUrl(b.website);
-    const label = esc(b.website.replace(/^https?:\/\//i, "").replace(/\/$/, ""));
+    const label = esc(b.websiteLabel || b.website.replace(/^https?:\/\//i, "").replace(/\/$/, ""));
     out.push({ k: "website", html: h ? a(h, label, linkColor) : label });
   }
-  if (b.address) out.push({ k: "address", html: esc(b.address) });
+  if (b.address) {
+    const h = b.addressHref ? safeHttpsUrl(b.addressHref) : null;
+    out.push({ k: "address", html: h ? a(h, esc(b.address), color) : esc(b.address) });
+  }
   return out;
 }
 
@@ -169,7 +172,10 @@ export class Slots {
   ) {}
   html(b: Block) {
     const skinned = this.skin.block?.(b, this.doc.theme);
-    return skinned === undefined ? renderBlock(b, { theme: this.doc.theme }) : applyBlockStyle(b, skinned, this.doc.theme);
+    if (skinned === undefined) return renderBlock(b, { theme: this.doc.theme });
+    // Skins lay out the four contact lines themselves; the Contact block's social links ride along underneath.
+    const social = b.type === "contact" ? contactSocial(b, this.doc.theme) : "";
+    return applyBlockStyle(b, skinned + social, this.doc.theme);
   }
   get<T extends Block["type"]>(type: T): Slot<T> | undefined {
     const i = this.doc.blocks.findIndex((b) => b.type === type);

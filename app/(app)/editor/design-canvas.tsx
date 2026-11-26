@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent as RPointer
 import type { Block } from "@/lib/schema/document";
 import { CLIENTS, type ClientId } from "@/lib/preview-clients";
 import { pickFieldKey } from "@/lib/editor/preview-map";
+import { PALETTE_MIME, type PaletteDrop } from "@/lib/editor/palette-drag";
 import { LivePreview, type BlockRect, type Layout, type PickHint, type Snapshot } from "./live-preview";
 
 export const MIN_ZOOM = 0.25;
@@ -30,12 +31,16 @@ type Drag =
   | { kind: "resize"; id: string; handle: "se" | "e" | "s"; startX: number; startY: number; w0: number; h0: number };
 
 export function DesignCanvas({
-  snapshot, ids, blocks, selected, client, dark, zoom, bg, onPick, onZoom, onResize, onMove, onInlineEdit, onContext, editRequest,
+  snapshot, ids, blocks, selected, client, dark, zoom, bg, onPick, onZoom, onResize, onMove, onInlineEdit, onContext, editRequest, onPaletteDrop, paletteDragging = false,
 }: {
   /** Right-click: block id (or null for empty canvas) and the position in page pixels. */
   onContext: (id: string | null, pageX: number, pageY: number) => void;
   /** Ask the canvas to start in-place text editing for a block (used by the context menu and mobile bar). */
   editRequest?: { id: string; n: number } | null;
+  /** An element from the "Add element" palette was dropped on the canvas (target describes where). */
+  onPaletteDrop?: (payload: string, target: PaletteDrop) => void;
+  /** True while a palette element is mid-drag: the selection overlay lets drops through to the preview underneath. */
+  paletteDragging?: boolean;
   snapshot: Snapshot; ids: string[]; blocks: Block[]; selected: string[]; client: ClientId; dark: boolean; zoom: number; bg: CanvasBg;
   onPick: (id: string | null, shift: boolean, hint: PickHint | null) => void;
   onZoom: (z: number) => void;
@@ -217,6 +222,13 @@ export function DesignCanvas({
       onPointerDown={(e) => { if (startPan(e)) return; }}
       onContextMenu={(e) => { if ((e.target as HTMLElement).dataset.canvasBg !== undefined || e.target === e.currentTarget) { e.preventDefault(); onContext(null, e.clientX, e.clientY); } }}
       onClick={(e) => { if ((e.target as HTMLElement).dataset.canvasBg !== undefined || e.target === e.currentTarget) onPick(null, false, null); }}
+      onDragOver={(e) => { if (onPaletteDrop && e.dataTransfer.types.includes(PALETTE_MIME)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }}
+      onDrop={(e) => {
+        const payload = e.dataTransfer.getData(PALETTE_MIME);
+        if (!onPaletteDrop || !payload) return;
+        e.preventDefault();
+        onPaletteDrop(payload, { id: null, after: true }); // dropped beside the signature: add at the bottom
+      }}
       onPointerMove={onMovePointer}
       onPointerUp={onUp}
       onPointerCancel={onUp}
@@ -235,6 +247,7 @@ export function DesignCanvas({
             onLayout={onLayout}
             onContextMenu={(id, x, y) => { const r = stage.current!.getBoundingClientRect(); onContext(id, r.left + x * zoom, r.top + y * zoom); }}
             onPick={(id, hint) => onPick(id, !!hint?.shift, hint)}
+            onPaletteDrop={onPaletteDrop}
             onDoubleClick={(id, hint) => { onPick(id, false, hint); beginEdit(id, hint); }}
           />
           <div className="absolute inset-0" style={{ pointerEvents: "none" }} aria-hidden="true">
@@ -252,7 +265,7 @@ export function DesignCanvas({
                   data-testid="selection"
                   data-selection={id}
                   className="absolute"
-                  style={{ left: r.x - 1, top: r.y - 1, width: r.w + 2, height: r.h + 2, outline: `2px solid ${b.locked ? "#9ca3af" : "#4f46e5"}`, pointerEvents: b.locked ? "none" : "auto", cursor: moving ? "grabbing" : "grab", opacity: moving ? 0.6 : 1, touchAction: "none" }}
+                  style={{ left: r.x - 1, top: r.y - 1, width: r.w + 2, height: r.h + 2, outline: `2px solid ${b.locked ? "#9ca3af" : "#4f46e5"}`, pointerEvents: b.locked || paletteDragging ? "none" : "auto", cursor: moving ? "grabbing" : "grab", opacity: moving ? 0.6 : 1, touchAction: "none" }}
                   onPointerDown={(e) => onBodyDown(e, id)}
                   onDoubleClick={() => beginEdit(id, null)}
                   onContextMenu={(e) => { e.preventDefault(); onContext(id, e.clientX, e.clientY); }}

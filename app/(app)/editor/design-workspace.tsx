@@ -1,14 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import type { Block, BlockStyle } from "@/lib/schema/document";
+import type { Block, BlockStyle, RowBlock } from "@/lib/schema/document";
 import { CLIENTS, CLIENT_IDS, type ClientId } from "@/lib/preview-clients";
-import { ELEMENT_PRESETS } from "@/lib/editor/blocks";
+import { BLOCK_LABEL, ELEMENT_PRESETS } from "@/lib/editor/blocks";
 import {
   MAX_BLOCKS, copyBlocks, duplicateBlock, insertBlock, moveBlock, newBlockId, patchBlock, patchStyle, removeBlocks, renameLayer, toggleHidden, toggleLocked, type EditState,
 } from "@/lib/editor/doc-ops";
+import { parsePayload, type PaletteDrop } from "@/lib/editor/palette-drag";
 import { DesignCanvas, MAX_ZOOM, MIN_ZOOM, type CanvasBg } from "./design-canvas";
+import { addRow, createRow, getBlock, insertNested, liftToTop, patchNested, patchNestedStyle, removeNested, ROW_PRESETS, sinkIntoColumn, type BlockPath } from "@/lib/editor/row-ops";
 import { DesignInspector } from "./design-inspector";
+import { RowEditor } from "./row-editor";
 import { LayersPanel } from "./layers-panel";
 import { ContextMenu, type MenuItem } from "./context-menu";
 import type { Snapshot } from "./live-preview";
@@ -19,7 +22,7 @@ type Pane = "layers" | "canvas" | "properties";
 const tbtn = "grid h-9 min-w-9 place-items-center rounded-lg px-2 text-sm font-medium text-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:opacity-30 disabled:hover:bg-transparent";
 
 export function DesignWorkspace({
-  state, update, snapshot, valid, client, setClient, dark, setDark, canUndo, canRedo, onUndo, onRedo, renderContent, header, actions, signaturePanel, checkPanel, notices,
+  state, update, snapshot, valid, client, setClient, dark, setDark, canUndo, canRedo, onUndo, onRedo, renderContent, renderNestedContent, header, actions, signaturePanel, checkPanel, notices,
 }: {
   /** Top bar, left: back link, signature name, view switch. */
   header: ReactNode;
@@ -35,6 +38,8 @@ export function DesignWorkspace({
   canUndo: boolean; canRedo: boolean; onUndo: () => void; onRedo: () => void;
   /** Content fields for one block (supplied by the editor so uploads, crop and GIF keep working). */
   renderContent: (index: number) => ReactNode;
+  /** Content fields for a block inside a row's column, addressed by its path (see lib/editor/row-ops.ts). */
+  renderNestedContent: (path: BlockPath) => ReactNode;
 }) {
   const { doc, ids } = state;
   const [selected, setSelected] = useState<string[]>([]);
@@ -55,7 +60,15 @@ export function DesignWorkspace({
   const primaryId = live.length ? live[live.length - 1] : null;
   const primary = primaryId ? ids.indexOf(primaryId) : -1;
 
+  // A block inside a row is selected by the row's stable id plus the path from that row (so it survives moving the row).
+  const [nestedSel, setNestedSel] = useState<{ id: string; rest: number[] } | null>(null);
+
+  // The column "Add element" adds into: the row's stable id plus [col] / [col, index, col] ... from that row. Null = add to the bottom.
+  const [activeCol, setActiveCol] = useState<{ id: string; rest: number[] } | null>(null);
+
   const select = useCallback((id: string | null, shift: boolean) => {
+    setNestedSel(null);
+    setActiveCol(null);
     setSelected((cur) => (id === null ? [] : shift ? (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]) : [id]));
   }, []);
 
@@ -96,13 +109,77 @@ export function DesignWorkspace({
     });
     setSelected(fresh);
   };
+  // Resolve the active column against the current document (undo or deleting can make it stale).
+  const activeColPath: number[] | null = (() => {
+    if (!activeCol) return null;
+    const at = ids.indexOf(activeCol.id);
+    if (at < 0) return null;
+    const colPath = [at, ...activeCol.rest];
+    const row = getBlock(doc.blocks, colPath.slice(0, -1));
+    return row?.type === "row" && row.columns[colPath[colPath.length - 1]] ? colPath : null;
+  })();
+  const addTarget = activeColPath
+    ? `${activeColPath.length === 2 ? "Row" : "Nested row"} ${activeColPath[0] + 1}, column ${activeColPath[activeColPath.length - 1] + 1}`
+    : null;
+  /** Add a block into the active column and select it. Returns false when there is no active column. */
+  const addToColumn = (make: () => Block): boolean => {
+    if (!activeColPath || !activeCol) return false;
+    const row = getBlock(doc.blocks, activeColPath.slice(0, -1)) as RowBlock;
+    const len = row.columns[activeColPath[activeColPath.length - 1]].blocks.length;
+    update((s) => insertNested(s, activeColPath, make()));
+    setSelected([activeCol.id]);
+    setNestedSel({ id: activeCol.id, rest: [...activeCol.rest, len] });
+    setRightTab("design");
+    setPane("properties");
+    return true;
+  };
+
   const addPreset = (presetId: string) => {
     const preset = ELEMENT_PRESETS.find((p) => p.id === presetId);
+    if (preset && addToColumn(() => preset.make())) return;
     if (!preset || ids.length >= MAX_BLOCKS) return;
     const id = newBlockId();
     const at = idxs.length ? Math.max(...idxs) + 1 : undefined;
     update((s) => insertBlock(s, preset.make(), at, id));
     setSelected([id]);
+    setPane("properties");
+  };
+
+  // An element dragged from the left palette onto the canvas: into the column under the pointer, or next to the block there.
+  const [paletteDragging, setPaletteDragging] = useState(false);
+  const onPaletteDrop = (payload: string, t: PaletteDrop) => {
+    setPaletteDragging(false);
+    const p = parsePayload(payload);
+    const block: Block | null = !p ? null : p.kind === "row" ? createRow(p.id) : ELEMENT_PRESETS.find((x) => x.id === p.id)?.make() ?? null;
+    if (!block) return;
+    const at = t.id ? ids.indexOf(t.id) : -1;
+    if (t.id && at >= 0 && t.nested && t.nested.length >= 2) {
+      const rest = t.nested.slice(0, -1);
+      const k = t.nested[t.nested.length - 1] + (t.after ? 1 : 0);
+      update((s) => insertNested(s, [at, ...rest], block, k));
+      setSelected([t.id]);
+      setActiveCol({ id: t.id, rest });
+      setNestedSel({ id: t.id, rest: [...rest, k] });
+    } else {
+      if (ids.length >= MAX_BLOCKS) return;
+      const id = newBlockId();
+      update((s) => insertBlock(s, block, at >= 0 ? at + (t.after ? 1 : 0) : undefined, id));
+      setSelected([id]);
+      setNestedSel(null);
+      setActiveCol(null);
+    }
+    setRightTab("design");
+  };
+
+  const addRowPreset = (presetId: string) => {
+    if (addToColumn(() => createRow(presetId))) return;
+    if (ids.length >= MAX_BLOCKS) return;
+    const id = newBlockId();
+    const at = idxs.length ? Math.max(...idxs) + 1 : undefined;
+    update((s) => addRow(s, presetId, at, id));
+    setSelected([id]);
+    setNestedSel(null);
+    setRightTab("design");
     setPane("properties");
   };
 
@@ -123,6 +200,7 @@ export function DesignWorkspace({
       else if (mod && (k === "=" || k === "+")) { e.preventDefault(); setZoom((z) => Math.min(MAX_ZOOM, +(z + 0.1).toFixed(2))); }
       else if (mod && k === "-") { e.preventDefault(); setZoom((z) => Math.max(MIN_ZOOM, +(z - 0.1).toFixed(2))); }
       else if (mod && k === "0") { e.preventDefault(); setZoom(1); }
+      else if ((k === "delete" || k === "backspace") && nestedPath) { e.preventDefault(); update((s) => removeNested(s, nestedPath)); setNestedSel(null); }
       else if (k === "delete" || k === "backspace") { if (idxs.length) { e.preventDefault(); doDelete(); } }
       else if (k === "escape") setSelected([]);
       else if (e.altKey && (k === "arrowup" || k === "arrowdown") && primary >= 0) { e.preventDefault(); update((s) => moveBlock(s, primary, primary + (k === "arrowup" ? -1 : 1)), "nudge"); }
@@ -149,6 +227,17 @@ export function DesignWorkspace({
   };
 
   const block = primary >= 0 ? doc.blocks[primary] : null;
+  const nestedPath: BlockPath | null = nestedSel && block?.type === "row" && primaryId === nestedSel.id ? [primary, ...nestedSel.rest] : null;
+  const nestedBlock = nestedPath ? getBlock(doc.blocks, nestedPath) : undefined;
+  const movable = doc.blocks.flatMap((b, i) => (i === primary || b.locked ? [] : [{ index: i, label: b.layer || BLOCK_LABEL[b.type] }]));
+  const onSink = (topIndex: number, dest: readonly number[]) => update((s) => sinkIntoColumn(s, topIndex, dest));
+  const moveOut = () => {
+    if (!nestedPath) return;
+    const id = newBlockId();
+    update((s) => liftToTop(s, nestedPath, primary + 1, id));
+    setSelected([id]);
+    setNestedSel(null);
+  };
 
   /* ---------- right-click menu + mobile action bar ---------- */
   const [menu, setMenu] = useState<{ x: number; y: number; id: string | null } | null>(null);
@@ -171,6 +260,9 @@ export function DesignWorkspace({
       return [
         { label: "Paste", hint: `${mod}V`, onClick: doPaste, disabled: !clip.current.length },
         { label: "Select all", hint: `${mod}A`, onClick: () => setSelected([...ids]) },
+        { kind: "sep" },
+        { kind: "heading", label: "Add row" },
+        ...ROW_PRESETS.map((p): MenuItem => ({ label: `Row · ${p.label}`, onClick: () => addRowPreset(p.id), disabled: ids.length >= MAX_BLOCKS })),
         { kind: "sep" },
         { kind: "heading", label: "Add element" },
         ...ELEMENT_PRESETS.map((p): MenuItem => ({ label: p.label, onClick: () => addPreset(p.id), disabled: ids.length >= MAX_BLOCKS })),
@@ -275,6 +367,10 @@ export function DesignWorkspace({
             onDuplicate={(i) => { const id = newBlockId(); update((s) => duplicateBlock(s, i, id)); setSelected([id]); }}
             onDelete={(i) => { update((s) => removeBlocks(s, [i])); setSelected([]); }}
             onAdd={addPreset}
+            onAddRow={addRowPreset}
+            addTarget={addTarget}
+            onPaletteDrag={setPaletteDragging}
+            onClearTarget={() => setActiveCol(null)}
           />
         </section>
 
@@ -292,7 +388,17 @@ export function DesignWorkspace({
               onZoom={setZoom}
               onContext={openMenu}
               editRequest={editReq}
-              onPick={(id, shift) => select(id, shift)}
+              onPaletteDrop={onPaletteDrop}
+              paletteDragging={paletteDragging}
+              onPick={(id, shift, hint) => {
+                select(id, shift);
+                // A click inside a row (a block or an empty-column placeholder) targets that column, and a real block is selected.
+                if (id && !shift && hint?.nested) {
+                  setActiveCol({ id, rest: hint.nested.slice(0, -1) });
+                  const at = ids.indexOf(id);
+                  if (at >= 0 && getBlock(doc.blocks, [at, ...hint.nested])) setNestedSel({ id, rest: hint.nested });
+                }
+              }}
               onResize={(id, patch) => update((s) => { const i = s.ids.indexOf(id); return i < 0 ? s : patchBlock(s, i, patch); }, `resize:${id}`)}
               onMove={(from, to) => update((s) => moveBlock(s, from, to))}
               onInlineEdit={(id, key, value) => update((s) => { const i = s.ids.indexOf(id); return i < 0 ? s : patchBlock(s, i, { [key]: value === "" ? undefined : value }); })}
@@ -344,14 +450,49 @@ export function DesignWorkspace({
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             {rightTab === "design" && (
-              <DesignInspector
-                block={block}
-                index={primary}
-                count={doc.blocks.length}
-                setStyle={setStyle}
-                setBlock={setBlockPatch}
-                content={primary >= 0 ? renderContent(primary) : null}
-              />
+              nestedPath && nestedBlock ? (
+                <div data-testid="nested-inspector">
+                  <button
+                    type="button"
+                    className="flex min-h-11 w-full items-center gap-2 border-b border-line px-4 text-left text-sm font-medium text-accent hover:bg-surface-2"
+                    onClick={() => setNestedSel(nestedSel && nestedSel.rest.length > 2 ? { id: nestedSel.id, rest: nestedSel.rest.slice(0, -2) } : null)}
+                  >
+                    <span aria-hidden="true">←</span> Back to row
+                  </button>
+                  <button type="button" className="flex min-h-11 w-full items-center gap-2 border-b border-line px-4 text-left text-sm text-muted hover:bg-surface-2 hover:text-ink disabled:opacity-40" disabled={ids.length >= MAX_BLOCKS || !!block?.locked} onClick={moveOut}>
+                    <span aria-hidden="true">⇱</span> Move out of the row
+                  </button>
+                  <DesignInspector
+                    block={nestedBlock}
+                    index={nestedPath[nestedPath.length - 1]}
+                    count={((getBlock(doc.blocks, nestedPath.slice(0, -2)) as RowBlock | undefined)?.columns[nestedPath[nestedPath.length - 2]]?.blocks.length) ?? 1}
+                    setStyle={(patch) => update((s) => patchNestedStyle(s, nestedPath, patch), `nstyle:${nestedPath.join(".")}:${Object.keys(patch).join(",")}`)}
+                    setBlock={(patch) => update((s) => patchNested(s, nestedPath, patch), `nblock:${nestedPath.join(".")}:${Object.keys(patch).join(",")}`)}
+                    content={
+                      nestedBlock.type === "row" ? (
+                        <RowEditor row={nestedBlock} rowPath={nestedPath} locked={!!block?.locked} update={update} movable={movable} onSink={onSink} activeColumn={activeColPath} onActivateColumn={(cp) => nestedSel && setActiveCol({ id: nestedSel.id, rest: cp.slice(1) })} onSelectNested={(p) => setNestedSel({ id: nestedSel!.id, rest: p.slice(1) })} />
+                      ) : (
+                        renderNestedContent(nestedPath)
+                      )
+                    }
+                  />
+                </div>
+              ) : (
+                <DesignInspector
+                  block={block}
+                  index={primary}
+                  count={doc.blocks.length}
+                  setStyle={setStyle}
+                  setBlock={setBlockPatch}
+                  content={
+                    block?.type === "row" ? (
+                      <RowEditor row={block} rowPath={[primary]} locked={!!block.locked} update={update} movable={movable} onSink={onSink} activeColumn={activeColPath} onActivateColumn={(cp) => setActiveCol({ id: primaryId!, rest: cp.slice(1) })} onSelectNested={(p) => setNestedSel({ id: primaryId!, rest: p.slice(1) })} />
+                    ) : primary >= 0 ? (
+                      renderContent(primary)
+                    ) : null
+                  }
+                />
+              )
             )}
             {rightTab === "signature" && <div className="space-y-4 p-3">{signaturePanel}</div>}
             {rightTab === "check" && <div className="space-y-4 p-3">{checkPanel}</div>}

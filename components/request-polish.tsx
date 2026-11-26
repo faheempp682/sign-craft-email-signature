@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useEffect, useId, useState } from "react";
 import { PaletteRoundIcon } from "@solar-icons/react/bold-duotone/palette-round";
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 /**
- * "Request polish": ask a Kimp designer to polish a SAVED signature.
+ * "Request polish": ask a SignCraft designer to polish a SAVED signature.
  *
  *   <RequestPolish signatureId={saved.id} origin="ai" />      // beside the AI result (after it is saved)
  *   <RequestPolish signatureId={s.id} origin="manual" />       // beside a saved signature
@@ -60,9 +61,10 @@ export function RequestPolish({
   const existing = sentId ?? openId;
   if (existing) {
     return (
-      <p className={cn("text-sm", className)}>
-        {sentId ? "Sent to a Kimp designer. " : "A polish request is open for this signature. "}
-        <Link href={`/polish/${existing}`} className="underline underline-offset-2">View request</Link>
+      <p className={cn("inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-full bg-accent-soft px-4 text-sm", className)}>
+        <PaletteRoundIcon size={16} aria-hidden="true" />
+        <span>{sentId ? "Sent to designer" : "Polish requested"}</span>
+        <Link href={`/polish/${existing}`} className="font-medium underline underline-offset-2">View request</Link>
       </p>
     );
   }
@@ -88,21 +90,24 @@ export function RequestPolish({
 
   return (
     <div className={className}>
-      <button
-        type="button"
-        className="btn"
-        aria-expanded={expanded}
-        aria-controls={`${id}-panel`}
-        onClick={() => setExpanded((v) => !v)}
-      >
-        <PaletteRoundIcon size={18} aria-hidden="true" />
-        Request polish
-      </button>
-      {expanded && (
-        <form id={`${id}-panel`} onSubmit={submit} className="card mt-3 space-y-3 p-4 text-sm">
-          {signatureId ? (
-            <>
-              <p className="text-muted">A Kimp designer will polish a copy of this signature. Your saved signature stays as it is until you accept the result.</p>
+      <Dialog open={expanded} onOpenChange={setExpanded}>
+        <DialogTrigger asChild>
+          <button type="button" className="btn">
+            <PaletteRoundIcon size={18} aria-hidden="true" />
+            Request polish
+          </button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Request polish</DialogTitle>
+            <DialogDescription>
+              {signatureId
+                ? "A SignCraft designer will polish a copy of this signature. Your saved signature stays as it is until you accept the result."
+                : "Save this signature first, then you can send it to a designer."}
+            </DialogDescription>
+          </DialogHeader>
+          {signatureId && (
+            <form onSubmit={submit} className="space-y-3 text-sm">
               <div>
                 <label htmlFor={`${id}-note`} className="mb-1 block text-muted">What should the designer improve?</label>
                 <textarea
@@ -120,12 +125,10 @@ export function RequestPolish({
               </div>
               {error && <p role="alert" className="text-red-600 dark:text-red-400">{error}</p>}
               <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? "Sending…" : "Send to a designer"}</button>
-            </>
-          ) : (
-            <p className="text-muted">Save this signature first, then you can send it to a designer.</p>
+            </form>
           )}
-        </form>
-      )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

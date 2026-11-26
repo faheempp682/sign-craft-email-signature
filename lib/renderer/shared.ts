@@ -21,6 +21,7 @@ export function safeHttpsUrl(raw: string): string | null {
   try {
     const u = new URL(candidate);
     if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+    if (u.username || u.password) return null; // "www.@site.com" is credentials, not a site
     u.protocol = "https:";
     return u.toString();
   } catch {
@@ -76,12 +77,22 @@ function renderContact(b: Extract<Block, { type: "contact" }>, { theme }: Ctx): 
   if (b.email) lines.push(link(`mailto:${b.email}`, esc(b.email), theme, `color:${theme.text};`));
   if (b.website) {
     const href = safeHttpsUrl(b.website);
-    const label = b.website.replace(/^https?:\/\//i, "").replace(/\/$/, "");
+    const label = b.websiteLabel || b.website.replace(/^https?:\/\//i, "").replace(/\/$/, "");
     lines.push(href ? link(href, esc(label), theme) : esc(label));
   }
-  if (b.address) lines.push(esc(b.address));
-  if (!lines.length) return "";
-  return `<div style="font-size:13px;line-height:20px;color:${theme.text};">${lines.join("<br />")}</div>`;
+  if (b.address) {
+    const href = b.addressHref ? safeHttpsUrl(b.addressHref) : null;
+    lines.push(href ? link(href, esc(b.address), theme, `color:${theme.text};`) : esc(b.address));
+  }
+  const text = lines.length ? `<div style="font-size:13px;line-height:20px;color:${theme.text};">${lines.join("<br />")}</div>` : "";
+  return text + contactSocial(b, theme);
+}
+
+/** The social links stored on a Contact block, as a small strip under its lines. Empty when there are none. */
+export function contactSocial(b: Extract<Block, { type: "contact" }>, theme: Theme): string {
+  if (!b.social?.length) return "";
+  const strip = socialDisplay({ type: "social", links: b.social, display: b.socialDisplay }, theme);
+  return strip ? `<div style="padding-top:${b.phone || b.email || b.website || b.address ? 6 : 0}px;">${strip}</div>` : "";
 }
 
 export const NETWORK_LABEL: Record<string, string> = {
@@ -201,6 +212,33 @@ function renderButton(b: Extract<Block, { type: "button" }>, { theme }: Ctx): st
   return `<table ${TABLE_ATTRS}><tr><td bgcolor="${bg}" style="background-color:${bg};border-radius:${radius}px;${border}padding:8px 16px;"><a href="${esc(b.href)}" target="_blank" style="display:inline-block;color:${fg};font-size:${size}px;font-weight:bold;line-height:${size + 5}px;text-decoration:none;">${esc(b.label)}</a></td></tr></table>`;
 }
 
+/** Where the built-in icon PNGs live: the app's own /email-icons/v1 when NEXT_PUBLIC_SITE_URL is set, else the CDN. */
+export const EMAIL_ICON_BASE = (
+  process.env.NEXT_PUBLIC_EMAIL_ICON_BASE ||
+  (process.env.NEXT_PUBLIC_SITE_URL ? `${process.env.NEXT_PUBLIC_SITE_URL.replace(/\/+$/, "")}/email-icons/v1` : "https://sign-craft.b-cdn.net/email-icons/v1")
+).replace(/\/+$/, "");
+
+export const emailIconUrl = (name: string): string => `${EMAIL_ICON_BASE}/${name}.png`;
+
+/** https, mailto: and tel: only. */
+function safeLink(raw: string): string | null {
+  return /^(https:\/\/|mailto:|tel:)\S+$/i.test(raw) ? raw : null;
+}
+
+/** An icon beside text, as a two-cell table (works in Outlook): the icon cell, then the text cell. */
+function renderIconText(b: Extract<Block, { type: "icontext" }>, { theme }: Ctx): string {
+  const size = b.size;
+  const glyph = Math.round(size * 0.6);
+  const pad = Math.floor((size - glyph) / 2);
+  const icon = b.src
+    ? `<img src="${esc(b.src)}" width="${size}" height="${size}" alt="" style="display:block;border:0;width:${size}px;height:${size}px;" />`
+    : `<table ${TABLE_ATTRS}><tr><td align="center" valign="middle" width="${size}" height="${size}" bgcolor="${b.iconColor ?? theme.primary}" style="width:${size}px;height:${size}px;background-color:${b.iconColor ?? theme.primary};border-radius:50%;"><img src="${esc(emailIconUrl(b.icon))}" width="${glyph}" height="${glyph}" alt="" style="display:block;border:0;width:${glyph}px;height:${glyph}px;margin:${pad}px;" /></td></tr></table>`;
+  const body = b.text.split(/\r?\n/).map(esc).join("<br />");
+  const href = b.href ? safeLink(b.href) : null;
+  const text = href ? `<a href="${esc(href)}" target="_blank" style="color:${theme.text};text-decoration:none;">${body}</a>` : body;
+  return `<table ${TABLE_ATTRS}><tr><td valign="middle" width="${size}" style="width:${size}px;">${icon}</td><td valign="middle" style="padding-left:8px;font-size:13px;line-height:${Math.max(20, size)}px;color:${theme.text};">${text}</td></tr></table>`;
+}
+
 function renderSpacer(b: Extract<Block, { type: "spacer" }>): string {
   return `<table ${TABLE_ATTRS}><tr><td height="${b.height}" style="height:${b.height}px;line-height:${b.height}px;font-size:1px;">&nbsp;</td></tr></table>`;
 }
@@ -227,6 +265,8 @@ function renderBlockBase(b: Block, ctx: Ctx): string {
       return renderButton(b, ctx);
     case "spacer":
       return renderSpacer(b);
+    case "icontext":
+      return renderIconText(b, ctx);
     case "row":
       // Children render through renderBlock, so every block (and nested row) works inside a column.
       return renderRow(b, (child) => renderBlock(child, ctx), GAP[ctx.theme.spacing]);
@@ -235,5 +275,10 @@ function renderBlockBase(b: Block, ctx: Ctx): string {
 
 /** Block HTML with the block's own design applied. Hidden blocks render nothing. */
 export function renderBlock(b: Block, ctx: Ctx): string {
-  return applyBlockStyle(b, renderBlockBase(b, ctx), ctx.theme);
+  let html = renderBlockBase(b, ctx);
+  if (b.type === "text" && b.href && html) {
+    const href = safeHttpsUrl(b.href);
+    if (href) html = `<a href="${esc(href)}" target="_blank" style="color:${ctx.theme.primary};text-decoration:underline;">${html}</a>`;
+  }
+  return applyBlockStyle(b, html, ctx.theme);
 }

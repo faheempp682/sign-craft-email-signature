@@ -32,17 +32,22 @@ function ScoreChip({ label, value, testId }: { label: string; value: number; tes
 }
 
 function IssueRow({ i, onFix, onSelect }: { i: Issue; onFix: (i: Issue) => void; onSelect: (b: number) => void }) {
+  const hasActions = i.blockIndex !== undefined || !!i.fix;
   return (
-    <li className="flex flex-wrap items-start gap-3 py-3 first:pt-0 last:pb-0">
-      <span className={`mt-0.5 shrink-0 rounded-md px-2 py-0.5 text-xs font-semibold ${TONE[i.severity]}`}>{LABEL[i.severity]}</span>
-      {/* Full width on phones so the sentence is not squeezed beside the buttons; side by side from sm up. */}
-      <p className="min-w-0 basis-[calc(100%-4.5rem)] text-sm sm:flex-1 sm:basis-0">{i.message}</p>
-      <span className="flex shrink-0 flex-wrap gap-2 max-sm:w-full max-sm:justify-end">
-        {i.blockIndex !== undefined && (
-          <button className="min-h-11 px-2 text-sm font-medium text-accent" onClick={() => onSelect(i.blockIndex!)}>Show</button>
-        )}
-        {i.fix && <button className="btn" onClick={() => onFix(i)}>{i.fixLabel ?? "Fix"}</button>}
-      </span>
+    <li className="py-3 first:pt-0 last:pb-0" data-testid="issue-row">
+      {/* The message always gets the full width beside the badge, whatever the panel width; buttons sit underneath. */}
+      <div className="flex items-start gap-3">
+        <span className={`mt-0.5 w-14 shrink-0 rounded-md px-2 py-0.5 text-center text-xs font-semibold ${TONE[i.severity]}`}>{LABEL[i.severity]}</span>
+        <p className="min-w-0 flex-1 text-sm [overflow-wrap:anywhere]">{i.message}</p>
+      </div>
+      {hasActions && (
+        <div className="mt-2 flex flex-wrap items-center gap-2 pl-[4.25rem] max-[380px]:pl-0" data-testid="issue-actions">
+          {i.blockIndex !== undefined && (
+            <button className="min-h-11 px-2 text-sm font-medium text-accent" onClick={() => onSelect(i.blockIndex!)}>Show</button>
+          )}
+          {i.fix && <button className="btn max-w-full whitespace-normal text-left [overflow-wrap:anywhere]" onClick={() => onFix(i)}>{i.fixLabel ?? "Fix"}</button>}
+        </div>
+      )}
     </li>
   );
 }

@@ -27,12 +27,14 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
   );
 }
 
-export function SettingsForms({ email, name, hasPassword }: { email: string; name: string; hasPassword: boolean }) {
+export function SettingsForms({ email, name, avatarUrl, hasPassword }: { email: string; name: string; avatarUrl: string; hasPassword: boolean }) {
   const router = useRouter();
   const supabase = useMemo(() => createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!), []);
 
   const [fullName, setFullName] = useState(name);
   const [nameR, setNameR] = useState<Result>(null);
+  const [avatar, setAvatar] = useState(avatarUrl);
+  const [avatarR, setAvatarR] = useState<Result>(null);
   const [newEmail, setNewEmail] = useState("");
   const [emailR, setEmailR] = useState<Result>(null);
   const [current, setCurrent] = useState("");
@@ -49,6 +51,41 @@ export function SettingsForms({ email, name, hasPassword }: { email: string; nam
     setBusy(null);
     setNameR(error ? { ok: false, text: error.message } : { ok: true, text: "Name saved." });
     if (!error) router.refresh();
+  }
+
+  async function uploadAvatar(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setBusy("avatar");
+    setAvatarR(null);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      body.append("purpose", "avatar");
+      const res = await fetch("/api/upload", { method: "POST", body });
+      const out = (await res.json().catch(() => ({}))) as { url?: string; message?: string };
+      if (!res.ok || !out.url) return setAvatarR({ ok: false, text: out.message ?? "Upload failed." });
+      const { error } = await supabase.auth.updateUser({ data: { avatar_url: out.url } });
+      if (error) return setAvatarR({ ok: false, text: error.message });
+      setAvatar(out.url);
+      setAvatarR({ ok: true, text: "Profile picture saved." });
+      router.refresh();
+    } catch {
+      setAvatarR({ ok: false, text: "Upload failed. Check your connection and try again." });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function removeAvatar() {
+    setBusy("avatar");
+    const { error } = await supabase.auth.updateUser({ data: { avatar_url: "" } });
+    setBusy(null);
+    if (error) return setAvatarR({ ok: false, text: error.message });
+    setAvatar("");
+    setAvatarR({ ok: true, text: "Profile picture removed." });
+    router.refresh();
   }
 
   async function saveEmail(e: React.FormEvent) {
@@ -96,6 +133,27 @@ export function SettingsForms({ email, name, hasPassword }: { email: string; nam
   return (
     <>
       <Section title="Profile">
+        <div className="flex items-center gap-4">
+          {avatar ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={avatar} alt="Your profile picture" className="size-20 rounded-full border border-line object-cover" />
+          ) : (
+            <span aria-hidden="true" className="flex size-20 items-center justify-center rounded-full bg-accent-soft text-2xl font-semibold text-accent">
+              {(fullName || email).trim().charAt(0).toUpperCase() || "?"}
+            </span>
+          )}
+          <div className="grid gap-2">
+            <div className="flex flex-wrap gap-2">
+              <label className={`btn cursor-pointer ${busy === "avatar" ? "pointer-events-none opacity-60" : ""}`}>
+                {busy === "avatar" ? "Uploading…" : avatar ? "Change picture" : "Upload picture"}
+                <input type="file" accept="image/png,image/jpeg,image/gif" className="sr-only" onChange={uploadAvatar} disabled={busy === "avatar"} />
+              </label>
+              {avatar && <button type="button" className="btn" onClick={removeAvatar} disabled={busy === "avatar"}>Remove</button>}
+            </div>
+            <p className="text-xs text-muted-foreground">PNG, JPG or GIF, up to 5 MB.</p>
+          </div>
+        </div>
+        <Status r={avatarR} />
         <form onSubmit={saveName} className="grid gap-3">
           <label htmlFor="full-name" className="text-sm font-medium">Name</label>
           <input id="full-name" className="field" maxLength={80} autoComplete="name" value={fullName} onChange={(e) => setFullName(e.target.value)} />

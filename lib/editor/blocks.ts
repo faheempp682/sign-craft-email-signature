@@ -1,6 +1,6 @@
-import type { Block } from "@/lib/schema/document";
+import { ICON_NAMES, type Block } from "@/lib/schema/document";
 
-export const BLOCK_TYPES = ["identity", "contact", "avatar", "social", "banner", "divider", "disclaimer", "text", "button", "spacer"] as const;
+export const BLOCK_TYPES = ["identity", "contact", "avatar", "social", "banner", "divider", "disclaimer", "text", "button", "spacer", "icontext"] as const;
 export type BlockType = (typeof BLOCK_TYPES)[number];
 
 export const BLOCK_LABEL: Record<Block["type"], string> = {
@@ -15,6 +15,7 @@ export const BLOCK_LABEL: Record<Block["type"], string> = {
   text: "Text",
   button: "Button / CTA",
   spacer: "Spacing",
+  icontext: "Icon + text",
 };
 
 export function createBlock(type: BlockType): Block {
@@ -39,6 +40,8 @@ export function createBlock(type: BlockType): Block {
       return { type, label: "Book a call", href: "https://example.com/" };
     case "spacer":
       return { type, height: 12 };
+    case "icontext":
+      return { type, icon: "phone", text: "+1 555 0100", size: 20 };
   }
 }
 
@@ -61,8 +64,10 @@ export const FIELDS: Record<Exclude<BlockType, "social" | "divider" | "spacer">,
   contact: [
     { key: "phone", label: "Phone", kind: "text" },
     { key: "email", label: "Email", kind: "text" },
-    { key: "website", label: "Website", kind: "text" },
+    { key: "website", label: "Website", kind: "text", hint: "Where the link goes, e.g. example.com or https://example.com/page" },
+    { key: "websiteLabel", label: "Website link text (optional)", kind: "text", hint: "Friendly text shown instead of the address, e.g. Visit our site" },
     { key: "address", label: "Address", kind: "text" },
+    { key: "addressHref", label: "Address link (optional)", kind: "text", hint: "e.g. a Google Maps link. Leave blank for plain text." },
   ],
   avatar: [
     { key: "src", label: "Image URL", kind: "text", upload: true, hint: "Public https PNG/JPG/GIF. Upload one, or paste a URL." },
@@ -82,10 +87,18 @@ export const FIELDS: Record<Exclude<BlockType, "social" | "divider" | "spacer">,
   text: [
     { key: "text", label: "Text", kind: "textarea" },
     { key: "variant", label: "Style", kind: "select", options: ["body", "heading"] },
+    { key: "href", label: "Link (optional)", kind: "text", hint: "Make this text clickable, e.g. https://yoursite.com/book" },
   ],
   button: [
     { key: "label", label: "Button label", kind: "text" },
     { key: "href", label: "Link", kind: "text" },
+  ],
+  icontext: [
+    { key: "icon", label: "Icon", kind: "select", options: ICON_NAMES },
+    { key: "text", label: "Text", kind: "textarea" },
+    { key: "href", label: "Link (optional)", kind: "text", hint: "https://, mailto: or tel:" },
+    { key: "src", label: "Your own icon (optional)", kind: "text", upload: true, hint: "Replaces the built-in icon. Square PNG works best." },
+    { key: "size", label: "Icon size (px)", kind: "number" },
   ],
 };
 
@@ -111,6 +124,7 @@ export const ELEMENT_PRESETS: ElementPreset[] = [
   { id: "divider", label: "Divider", make: () => createBlock("divider") },
   { id: "banner", label: "Banner", make: () => createBlock("banner") },
   { id: "button", label: "Button / CTA", make: () => createBlock("button") },
+  { id: "icontext", label: "Icon + text", make: () => ({ ...(createBlock("icontext") as Extract<Block, { type: "icontext" }>), layer: "Icon + text" }) },
   { id: "spacing", label: "Custom spacing", make: () => createBlock("spacer") },
   { id: "disclaimer", label: "Disclaimer", make: () => ({ type: "disclaimer", text: "This email is confidential.", layer: "Disclaimer" }) },
 ];

@@ -75,12 +75,12 @@ export function MySignatures({ items, limit }: { items: MySignature[]; limit?: n
                 srcDoc={`<!doctype html><html><body style="margin:12px;background:#fff;zoom:0.8;">${renderToEmailHtml(s.doc)}</body></html>`}
                 className="pointer-events-none h-64 w-full border-b border-line bg-white"
               />
-              <div className="flex items-start justify-between gap-3 p-5">
+              <div className="space-y-4 p-5">
                 <div className="min-w-0">
                   <h3 className="truncate font-semibold">{s.name}</h3>
                   <p className="mt-1 text-sm text-muted">Updated <UpdatedDate iso={s.updatedAt} /></p>
                 </div>
-                <div className="flex shrink-0 flex-wrap gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Link href={`/editor?s=${s.id}`} className="btn btn-primary">Edit</Link>
                   <RequestPolish signatureId={s.id} origin="manual" />
                   <button className="btn" disabled={busy === s.id} onClick={() => remove(s)} aria-label={`Delete ${s.name}`}>
